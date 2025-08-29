@@ -1,0 +1,22 @@
+{
+    "name": "todo-service",
+    "version": "1.0.0",
+    "description": "A microservice for managing todos.",
+    "main": "todos.js",
+    "type": "module",
+    "scripts": {
+        "start": "node todos.js",
+        "dev": "nodemon todos.js"
+    },
+    "dependencies": {
+        "dotenv": "^17.2.1",
+        "express": "^4.18.2",
+        "microservices-poc-root": "file:..",
+        "mongodb": "^6.3.0",
+        "reflect-metadata": "^0.1.13",
+        "typeorm": "^0.3.20"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}

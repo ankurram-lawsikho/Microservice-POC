@@ -1,0 +1,22 @@
+{
+    "name": "user-service",
+    "version": "1.0.0",
+    "description": "A microservice for managing users.",
+    "main": "users.js",
+    "type": "module",
+    "scripts": {
+        "start": "node users.js",
+        "dev": "nodemon users.js"
+    },
+    "dependencies": {
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "microservices-poc-root": "file:..",
+        "pg": "^8.11.3",
+        "reflect-metadata": "^0.1.13",
+        "typeorm": "^0.3.20"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}

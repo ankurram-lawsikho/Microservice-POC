@@ -1,0 +1,17 @@
+{
+    "name": "api-gateway",
+    "version": "1.0.0",
+    "description": "The API gateway for the microservices PoC.",
+    "main": "gateway.js",
+    "scripts": {
+        "start": "node gateway.js"
+    },
+    "dependencies": {
+        "axios": "^1.4.0",
+        "express": "^4.18.2",
+        "http-proxy-middleware": "^2.0.6",
+        "microservices-poc-root": "file:..",
+        "swagger-jsdoc": "^6.2.8",
+        "swagger-ui-express": "^5.0.0"
+    }
+}

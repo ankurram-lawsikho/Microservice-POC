@@ -1,0 +1,12 @@
+{
+    "name": "microservices-poc-root",
+    "version": "1.0.0",
+    "description": "Root package file to manage all microservices.",
+    "scripts": {
+      "install-all": "npm install --prefix api-gateway && npm install --prefix user-service && npm install --prefix todo-service",
+      "start": "concurrently \"npm start --prefix api-gateway\" \"npm start --prefix user-service\" \"npm start --prefix todo-service\""
+    },
+    "devDependencies": {
+      "concurrently": "^8.2.0"
+    }
+  }
