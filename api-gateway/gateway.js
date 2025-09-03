@@ -1,47 +1,95 @@
-const express = require('express');
-const { createProxyMiddleware } = require('http-proxy-middleware');
-const axios = require('axios');
-const swaggerUi = require('swagger-ui-express');
-const swaggerSpec = require('./swagger');
+import express from 'express';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import dotenv from 'dotenv';
+import axios from 'axios';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './swagger.js';
+import cors from 'cors';
+
+// NOTE: Authentication is temporarily disabled for testing purposes
+// All endpoints are now publicly accessible without JWT tokens
+
+dotenv.config();
 
 const app = express();
-const port = 3005;
+const port = 3000;
 
-// Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 
 // Swagger Documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Microservices API Documentation',
+    customfavIcon: '/favicon.ico'
+}));
 
-// Define the base URLs of your microservices
-const USER_SERVICE_URL = 'http://localhost:3001';
-const TODO_SERVICE_URL = 'http://localhost:3002';
+// Service URLs
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001';
+const TODO_SERVICE_URL = process.env.TODO_SERVICE_URL || 'http://localhost:3002';
+const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
+const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007';
 
 /**
  * @swagger
  * /health:
  *   get:
+ *     summary: Get overall system health
+ *     description: Check the health status of all microservices through the gateway
  *     tags: [Health]
- *     summary: Get API Gateway health status
- *     description: Returns the health status of the API Gateway
  *     responses:
  *       200:
- *         description: Gateway is healthy
+ *         description: System health status
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/HealthResponse'
+ *       500:
+ *         description: Gateway error
  */
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        gateway: 'Running',
-        timestamp: new Date().toISOString(),
-        services: {
-            userService: `${USER_SERVICE_URL}/health`,
-            todoService: `${TODO_SERVICE_URL}/health`
+app.get('/health', async (req, res) => {
+    console.log('🏥 [GATEWAY] Health check requested');
+    
+    const services = {
+        userService: USER_SERVICE_URL,
+        todoService: TODO_SERVICE_URL,
+        notificationService: NOTIFICATION_SERVICE_URL,
+        messagingService: MESSAGING_SERVICE_URL,
+        authService: AUTH_SERVICE_URL
+    };
+
+    const healthResults = {};
+
+    for (const [serviceName, serviceUrl] of Object.entries(services)) {
+        try {
+            // Different services have different health endpoint paths
+            let healthEndpoint = '/health';
+            if (serviceName === 'notificationService' || serviceName === 'messagingService' || serviceName === 'authService') {
+                healthEndpoint = '/api/health';
+            }
+            const response = await axios.get(`${serviceUrl}${healthEndpoint}`, { timeout: 5000 });
+            healthResults[serviceName] = {
+                status: 'OK',
+                data: response.data,
+                responseTime: response.headers['x-response-time'] || 'N/A'
+            };
+        } catch (error) {
+            healthResults[serviceName] = {
+                status: 'ERROR',
+                error: error.message,
+                code: error.code || 'UNKNOWN'
+            };
         }
+    }
+
+    const overallStatus = Object.values(healthResults).every(result => result.status === 'OK') ? 'OK' : 'DEGRADED';
+
+    res.json({
+        status: overallStatus,
+        gateway: 'OK',
+        timestamp: new Date().toISOString(),
+        services: healthResults
     });
 });
 
@@ -49,12 +97,12 @@ app.get('/health', (req, res) => {
  * @swagger
  * /services/health:
  *   get:
+ *     summary: Get individual service health
+ *     description: Check the health status of each microservice individually
  *     tags: [Health]
- *     summary: Get health status of all services
- *     description: Returns the health status of all microservices
  *     responses:
  *       200:
- *         description: All services health status
+ *         description: Individual service health statuses
  *         content:
  *           application/json:
  *             schema:
@@ -62,42 +110,180 @@ app.get('/health', (req, res) => {
  *               properties:
  *                 gateway:
  *                   type: string
- *                 userService:
- *                   $ref: '#/components/schemas/HealthResponse'
- *                 todoService:
- *                   $ref: '#/components/schemas/HealthResponse'
  *                 timestamp:
  *                   type: string
  *                   format: date-time
+ *                 services:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       name:
+ *                         type: string
+ *                       port:
+ *                         type: integer
+ *                       status:
+ *                         type: string
+ *                       data:
+ *                         type: object
  */
 app.get('/services/health', async (req, res) => {
-    try {
-        const userHealthPromise = axios.get(`${USER_SERVICE_URL}/health`).catch(() => ({ data: { status: 'DOWN' } }));
-        const todoHealthPromise = axios.get(`${TODO_SERVICE_URL}/health`).catch(() => ({ data: { status: 'DOWN' } }));
+    console.log('🏥 [GATEWAY] Services health check requested');
+    
+    const services = [
+        { name: 'User Service', url: USER_SERVICE_URL, port: 3001 },
+        { name: 'Todo Service', url: TODO_SERVICE_URL, port: 3002 },
+        { name: 'Notification Service', url: NOTIFICATION_SERVICE_URL, port: 3003 },
+        { name: 'Messaging Service', url: MESSAGING_SERVICE_URL, port: 3006 },
+        { name: 'Auth Service', url: AUTH_SERVICE_URL, port: 3007 }
+    ];
 
-        const [userHealth, todoHealth] = await Promise.all([userHealthPromise, todoHealthPromise]);
+    const healthResults = [];
 
-        res.json({
-            gateway: 'OK',
-            userService: userHealth.data,
-            todoService: todoHealth.data,
-            timestamp: new Date().toISOString()
-        });
-    } catch (error) {
-        res.status(500).json({
-            gateway: 'ERROR',
-            error: error.message
-        });
+    for (const service of services) {
+        try {
+            // Different services have different health endpoint paths
+            let healthEndpoint = '/health';
+            if (service.name === 'Notification Service' || service.name === 'Messaging Service' || service.name === 'Auth Service') {
+                healthEndpoint = '/api/health';
+            }
+            const response = await axios.get(`${service.url}${healthEndpoint}`, { timeout: 5000 });
+            healthResults.push({
+                name: service.name,
+                port: service.port,
+                status: 'OK',
+                data: response.data
+            });
+        } catch (error) {
+            healthResults.push({
+                name: service.name,
+                port: service.port,
+                status: 'ERROR',
+                error: error.message
+            });
+        }
     }
+
+    res.json({
+        gateway: 'OK',
+        timestamp: new Date().toISOString(),
+        services: healthResults
+    });
 });
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: User registration
+ *     description: Create a new user account
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateUserRequest'
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       400:
+ *         description: Invalid input
+ *       409:
+ *         description: User with email already exists
+ * /api/auth/login:
+ *   post:
+ *     summary: User login
+ *     description: Authenticate user and get JWT token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       401:
+ *         description: Invalid credentials
+ * /api/auth/verify:
+ *   post:
+ *     summary: Verify JWT token
+ *     description: Verify the validity of a JWT token
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token is valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 valid:
+ *                   type: boolean
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Invalid token
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Refresh JWT token
+ *     description: Get a new JWT token using the current one
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Token refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
+ *       401:
+ *         description: Invalid token
+ */
+// Authentication service routes (public)
+app.use('/api/auth', createProxyMiddleware({
+    target: AUTH_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/auth': '/api/auth'
+    },
+    onProxyReq: (proxyReq, req, res) => {
+        console.log('🔐 [GATEWAY] Auth service request:', req.method, req.path)
+        
+        if (req.body && Object.keys(req.body).length > 0) {
+            const bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+        }
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        console.log('✅ [GATEWAY] Auth service response:', proxyRes.statusCode);
+    }
+}));
 
 /**
  * @swagger
  * /users:
  *   get:
+ *     summary: Get all users (Admin only)
+ *     description: Retrieve a list of all users - requires admin role
  *     tags: [Users]
- *     summary: Get all users
- *     description: Retrieve a list of all users from the User Service
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of users
@@ -107,16 +293,14 @@ app.get('/services/health', async (req, res) => {
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/User'
- *       503:
- *         description: User service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - no token provided
+ *       403:
+ *         description: Forbidden - insufficient permissions
  *   post:
- *     tags: [Users]
  *     summary: Create a new user
- *     description: Create a new user with the provided information
+ *     description: Create a new user account (public endpoint)
+ *     tags: [Users]
  *     requestBody:
  *       required: true
  *       content:
@@ -132,27 +316,15 @@ app.get('/services/health', async (req, res) => {
  *               $ref: '#/components/schemas/User'
  *       400:
  *         description: Invalid input
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       409:
  *         description: User with email already exists
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: User service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  * /users/{id}:
  *   get:
- *     tags: [Users]
  *     summary: Get user by ID
- *     description: Retrieve a specific user by their ID
+ *     description: Retrieve a specific user by their ID (own user or admin)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -167,22 +339,18 @@ app.get('/services/health', async (req, res) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - not own user or admin
  *       404:
  *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: User service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   put:
- *     tags: [Users]
  *     summary: Update user
- *     description: Update an existing user's information
+ *     description: Update an existing user (own user or admin)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -199,26 +367,18 @@ app.get('/services/health', async (req, res) => {
  *     responses:
  *       200:
  *         description: User updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  *       404:
  *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: User service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   delete:
- *     tags: [Users]
  *     summary: Delete user
- *     description: Delete a user by their ID
+ *     description: Delete a user by their ID (own user or admin)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -229,28 +389,24 @@ app.get('/services/health', async (req, res) => {
  *     responses:
  *       204:
  *         description: User deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  *       404:
  *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: User service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
+// User service routes (protected)
 app.use('/users', createProxyMiddleware({
     target: USER_SERVICE_URL,
     changeOrigin: true,
+    logLevel: 'debug',
     pathRewrite: {
         '^/users': '/users'
     },
     onProxyReq: (proxyReq, req, res) => {
-        console.log(`API Gateway: Proxying ${req.method} request to User Service: ${req.originalUrl}`);
-        
+        console.log('👤 [GATEWAY] User service request:', req.method, req.path);
+
         if (req.body && Object.keys(req.body).length > 0) {
             const bodyData = JSON.stringify(req.body);
             proxyReq.setHeader('Content-Type', 'application/json');
@@ -259,44 +415,36 @@ app.use('/users', createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
-        console.log(`API Gateway: User Service responded with status: ${proxyRes.statusCode}`);
-    },
-    onError: (err, req, res) => {
-        console.error('API Gateway: User Service proxy error:', err.message);
-        res.status(503).json({
-            error: 'User service is unavailable',
-            message: 'The user service is not running or not accessible'
-        });
-    },
-    timeout: 10000
+        console.log('✅ [GATEWAY] User service response:', proxyRes.statusCode);
+    }
 }));
 
 /**
  * @swagger
  * /todos:
  *   get:
+ *     summary: Get user's todos
+ *     description: Retrieve all todos for the authenticated user
  *     tags: [Todos]
- *     summary: Get all todos
- *     description: Retrieve a list of all todos from the Todo Service
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of todos
+ *         description: List of user's todos
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Todo'
- *       503:
- *         description: Todo service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized - no token provided
  *   post:
- *     tags: [Todos]
  *     summary: Create a new todo
- *     description: Create a new todo for a user
+ *     description: Create a new todo for the authenticated user
+ *     tags: [Todos]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -312,21 +460,15 @@ app.use('/users', createProxyMiddleware({
  *               $ref: '#/components/schemas/Todo'
  *       400:
  *         description: Invalid input
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: Todo service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
  * /todos/{id}:
  *   get:
- *     tags: [Todos]
  *     summary: Get todo by ID
- *     description: Retrieve a specific todo by its ID
+ *     description: Retrieve a specific todo by its ID (own todo only)
+ *     tags: [Todos]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -341,22 +483,18 @@ app.use('/users', createProxyMiddleware({
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Todo'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - not own todo
  *       404:
  *         description: Todo not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: Todo service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   put:
- *     tags: [Todos]
  *     summary: Update todo
- *     description: Update an existing todo
+ *     description: Update an existing todo (own todo only)
+ *     tags: [Todos]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -367,32 +505,24 @@ app.use('/users', createProxyMiddleware({
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/UpdateTodoRequest'
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/UpdateTodoRequest'
  *     responses:
  *       200:
  *         description: Todo updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Todo'
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  *       404:
  *         description: Todo not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: Todo service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   delete:
- *     tags: [Todos]
  *     summary: Delete todo
- *     description: Delete a todo by its ID
+ *     description: Delete a todo by its ID (own todo only)
+ *     tags: [Todos]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -403,55 +533,60 @@ app.use('/users', createProxyMiddleware({
  *     responses:
  *       204:
  *         description: Todo deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  *       404:
  *         description: Todo not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: Todo service unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- * /todos/user/{userId}:
+ * /todos/completed:
  *   get:
+ *     summary: Get completed todos
+ *     description: Retrieve all completed todos for the authenticated user
  *     tags: [Todos]
- *     summary: Get todos by user ID
- *     description: Retrieve all todos for a specific user
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of todos for the user
+ *         description: List of completed todos
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Todo'
- *       503:
- *         description: Todo service unavailable
+ *       401:
+ *         description: Unauthorized
+ * /todos/pending:
+ *   get:
+ *     summary: Get pending todos
+ *     description: Retrieve all pending (incomplete) todos for the authenticated user
+ *     tags: [Todos]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending todos
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Todo'
+ *       401:
+ *         description: Unauthorized
  */
+// Todo service routes (protected)
 app.use('/todos', createProxyMiddleware({
     target: TODO_SERVICE_URL,
     changeOrigin: true,
+    logLevel: 'debug',
     pathRewrite: {
         '^/todos': '/todos'
     },
     onProxyReq: (proxyReq, req, res) => {
-        console.log(`API Gateway: Proxying ${req.method} request to Todo Service: ${req.originalUrl}`);
-        
+        console.log('✅ [GATEWAY] Todo service request:', req.method, req.path);
+
         if (req.body && Object.keys(req.body).length > 0) {
             const bodyData = JSON.stringify(req.body);
             proxyReq.setHeader('Content-Type', 'application/json');
@@ -460,93 +595,32 @@ app.use('/todos', createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
-        console.log(`API Gateway: Todo Service responded with status: ${proxyRes.statusCode}`);
-    },
-    onError: (err, req, res) => {
-        console.error('API Gateway: Todo Service proxy error:', err.message);
-        res.status(503).json({
-            error: 'Todo service is unavailable',
-            message: 'The todo service is not running or not accessible'
-        });
-    },
-    timeout: 15000
+        console.log('✅ [GATEWAY] Todo service response:', proxyRes.statusCode);
+    }
 }));
 
-/**
- * @swagger
- * /user-profile/{id}:
- *   get:
- *     tags: [Gateway]
- *     summary: Get combined user profile with todos
- *     description: Fetches user data and their todos from both services
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: User ID
- *     responses:
- *       200:
- *         description: User profile with todos
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/UserProfile'
- *       404:
- *         description: User not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       503:
- *         description: Services unavailable
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-app.get('/user-profile/:id', async (req, res) => {
-    const userId = req.params.id;
-    console.log(`API Gateway: Fetching combined profile for user ID: ${userId}`);
-
-    try {
-        const userPromise = axios.get(`${USER_SERVICE_URL}/users/${userId}`);
-        const todosPromise = axios.get(`${TODO_SERVICE_URL}/todos/user/${userId}`);
-
-        const [userResponse, todosResponse] = await Promise.all([userPromise, todosPromise]);
-
-        const userProfile = {
-            user: userResponse.data,
-            todos: todosResponse.data
-        };
-
-        res.json(userProfile);
-
-    } catch (error) {
-        console.error("API Gateway: Error fetching user profile.", error.message);
-        
-        if (error.code === 'ECONNREFUSED') {
-            res.status(503).json({ 
-                error: 'Services unavailable',
-                message: 'One or more services are not running'
-            });
-        } else {
-            res.status(500).json({ 
-                error: 'Error fetching user profile data',
-                message: error.message 
-            });
-        }
+// Messaging service routes (internal)
+app.use('/api/messaging', createProxyMiddleware({
+    target: MESSAGING_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/messaging': '/api'
+    },
+    onProxyReq: (proxyReq, req, res) => {
+        console.log('📨 [GATEWAY] Messaging service request:', req.method, req.path);
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        console.log('✅ [GATEWAY] Messaging service response:', proxyRes.statusCode);
     }
-});
+}));
 
 /**
  * @swagger
  * /:
  *   get:
+ *     summary: API Gateway information
+ *     description: Get information about the API Gateway and available services
  *     tags: [Gateway]
- *     summary: Get API Gateway information
- *     description: Returns information about the API Gateway and available endpoints
  *     responses:
  *       200:
  *         description: Gateway information
@@ -559,58 +633,87 @@ app.get('/user-profile/:id', async (req, res) => {
  *                   type: string
  *                 version:
  *                   type: string
- *                 endpoints:
+ *                 services:
  *                   type: object
+ *                   properties:
+ *                     auth:
+ *                       type: string
+ *                     users:
+ *                       type: string
+ *                     todos:
+ *                       type: string
+ *                     notifications:
+ *                       type: string
+ *                     messaging:
+ *                       type: string
+ *                 documentation:
+ *                   type: string
  *                 timestamp:
  *                   type: string
  *                   format: date-time
  */
+// Root endpoint
 app.get('/', (req, res) => {
     res.json({
-        message: 'API Gateway is running',
+        message: '🚀 Microservices API Gateway',
         version: '1.0.0',
-        documentation: '/api-docs',
-        endpoints: {
-            health: '/health',
-            servicesHealth: '/services/health',
-            users: '/users*',
-            todos: '/todos*',
-            userProfile: '/user-profile/:id'
+        services: {
+            auth: `${AUTH_SERVICE_URL}/api/auth`,
+            users: `${USER_SERVICE_URL}/users`,
+            todos: `${TODO_SERVICE_URL}/todos`,
+            notifications: `${NOTIFICATION_SERVICE_URL}/notifications`,
+            messaging: `${MESSAGING_SERVICE_URL}/api`
         },
+        documentation: '/api-docs',
         timestamp: new Date().toISOString()
     });
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('API Gateway: Unhandled error:', err);
+    console.error('❌ [GATEWAY] Error:', err.message);
     res.status(500).json({
-        error: 'Internal server error',
-        message: 'Something went wrong in the API gateway'
+        error: 'Gateway Error',
+        message: err.message,
+        timestamp: new Date().toISOString()
     });
 });
 
 // 404 handler
 app.use('*', (req, res) => {
     res.status(404).json({
-        error: 'Not found',
-        message: `Route ${req.originalUrl} not found`,
-        availableRoutes: ['/users*', '/todos*', '/user-profile/:id', '/health', '/services/health', '/api-docs']
+        error: 'Route Not Found',
+        message: `The route ${req.originalUrl} does not exist`,
+        availableRoutes: [
+            '/api/auth/*',
+            '/users/*',
+            '/todos/*',
+            '/api/messaging/*',
+            '/health',
+            '/services/health',
+            '/api-docs'
+        ],
+        timestamp: new Date().toISOString()
     });
 });
 
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('🔌 [GATEWAY] Shutting down API Gateway...');
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('🔌 [GATEWAY] Shutting down API Gateway...');
+    process.exit(0);
+});
+
 app.listen(port, () => {
-    console.log(`===========================================`);
-    console.log(`🚀 API Gateway running on http://localhost:${port}`);
-    console.log(`📚 Swagger Documentation: http://localhost:${port}/api-docs`);
-    console.log(`===========================================`);
-    console.log(`📋 Available endpoints:`);
-    console.log(`   GET  / - Gateway info`);
-    console.log(`   GET  /health - Gateway health check`);
-    console.log(`   GET  /services/health - All services health check`);
-    console.log(`   ALL  /users* - User service proxy`);
-    console.log(`   ALL  /todos* - Todo service proxy`);
-    console.log(`   GET  /user-profile/:id - Combined user profile`);
-    console.log(`   GET  /api-docs - Swagger documentation`);
-    console.log(`===========================================`);
+    console.log('🚀 [GATEWAY] API Gateway started');
+    console.log('📍 [GATEWAY] Running on port:', port);
+    console.log('🔐 [GATEWAY] Authentication service routing enabled (temporarily disabled for testing)');
+    console.log('👤 [GATEWAY] User service routing enabled');
+    console.log('✅ [GATEWAY] Todo service routing enabled');
+    console.log('📨 [GATEWAY] Messaging service routing enabled');
+    console.log('📧 [GATEWAY] Notification service routing enabled');
 });

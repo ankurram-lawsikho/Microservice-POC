@@ -1,4 +1,4 @@
-const swaggerJsdoc = require('swagger-jsdoc');
+import swaggerJsdoc from 'swagger-jsdoc';
 
 const options = {
     definition: {
@@ -14,7 +14,7 @@ const options = {
         },
         servers: [
             {
-                url: 'http://localhost:3005',
+                url: 'http://localhost:3000',
                 description: 'Development server'
             }
         ],
@@ -32,11 +32,23 @@ const options = {
                 description: 'Todo management operations'
             },
             {
+                name: 'Authentication',
+                description: 'Authentication and authorization endpoints'
+            },
+            {
                 name: 'Health',
                 description: 'Health check endpoints'
             }
         ],
         components: {
+            securitySchemes: {
+                bearerAuth: {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT',
+                    description: 'JWT token for authentication'
+                }
+            },
             schemas: {
                 Error: {
                     type: 'object',
@@ -56,7 +68,7 @@ const options = {
                     properties: {
                         status: {
                             type: 'string',
-                            enum: ['OK', 'ERROR']
+                            enum: ['OK', 'ERROR', 'DEGRADED']
                         },
                         gateway: {
                             type: 'string'
@@ -64,6 +76,10 @@ const options = {
                         timestamp: {
                             type: 'string',
                             format: 'date-time'
+                        },
+                        services: {
+                            type: 'object',
+                            description: 'Health status of all services'
                         }
                     }
                 },
@@ -97,9 +113,11 @@ const options = {
                             format: 'email',
                             description: 'User email'
                         },
-                        password: {
+                        role: {
                             type: 'string',
-                            description: 'User password (optional)'
+                            enum: ['user', 'admin'],
+                            description: 'User role',
+                            default: 'user'
                         },
                         createdAt: {
                             type: 'string',
@@ -128,10 +146,10 @@ const options = {
                         },
                         password: {
                             type: 'string',
-                            description: 'User password (optional)'
+                            description: 'User password'
                         }
                     },
-                    required: ['name', 'email']
+                    required: ['name', 'email', 'password']
                 },
                 UpdateUserRequest: {
                     type: 'object',
@@ -144,10 +162,6 @@ const options = {
                             type: 'string',
                             format: 'email',
                             description: 'User email'
-                        },
-                        password: {
-                            type: 'string',
-                            description: 'User password'
                         }
                     }
                 },
@@ -186,21 +200,12 @@ const options = {
                 CreateTodoRequest: {
                     type: 'object',
                     properties: {
-                        userId: {
-                            type: 'integer',
-                            description: 'User ID who owns this todo'
-                        },
                         task: {
                             type: 'string',
                             description: 'Todo task description'
-                        },
-                        completed: {
-                            type: 'boolean',
-                            description: 'Todo completion status',
-                            default: false
                         }
                     },
-                    required: ['userId', 'task']
+                    required: ['task']
                 },
                 UpdateTodoRequest: {
                     type: 'object',
@@ -214,6 +219,33 @@ const options = {
                             description: 'Todo completion status'
                         }
                     }
+                },
+                LoginRequest: {
+                    type: 'object',
+                    properties: {
+                        email: {
+                            type: 'string',
+                            format: 'email',
+                            description: 'User email'
+                        },
+                        password: {
+                            type: 'string',
+                            description: 'User password'
+                        }
+                    },
+                    required: ['email', 'password']
+                },
+                LoginResponse: {
+                    type: 'object',
+                    properties: {
+                        token: {
+                            type: 'string',
+                            description: 'JWT authentication token'
+                        },
+                        user: {
+                            $ref: '#/components/schemas/User'
+                        }
+                    }
                 }
             }
         }
@@ -221,4 +253,4 @@ const options = {
     apis: ['./gateway.js']
 };
 
-module.exports = swaggerJsdoc(options);
+export default swaggerJsdoc(options);

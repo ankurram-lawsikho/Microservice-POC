@@ -1,0 +1,22 @@
+{
+    "name": "notification-service",
+    "version": "1.0.0",
+    "description": "A microservice for sending notifications using Nodemailer and RabbitMQ",
+    "main": "notification.js",
+    "type": "module",
+    "scripts": {
+        "start": "node notification.js",
+        "dev": "nodemon notification.js"
+    },
+    "dependencies": {
+        "amqplib": "^0.10.3",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "microservices-poc-root": "file:..",
+        "nodemailer": "^6.9.7"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.2"
+    }
+}
