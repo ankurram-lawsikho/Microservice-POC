@@ -4,7 +4,7 @@ import { AppDataSource } from "./config/database.js";
 import { Todo } from "./entities/Todo.js";
 import axios from 'axios';
 import dotenv from 'dotenv';
-// Temporarily removed auth middleware for testing
+import { authenticateToken, requireOwnership } from '../auth-service/auth-middleware.js';
 
 dotenv.config();
 
@@ -16,8 +16,32 @@ app.use(express.json());
 // Messaging service configuration
 const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
 
-// Default user ID for testing (since auth is temporarily disabled)
-const DEFAULT_TEST_USER_ID = 1;
+// Custom middleware to check todo ownership
+const requireTodoOwnership = async (req, res, next) => {
+    try {
+        const todoId = req.params.id;
+        const todoRepository = AppDataSource.getRepository(Todo);
+        
+        const todo = await todoRepository.findOne({
+            where: { id: todoId }
+        });
+        
+        if (!todo) {
+            return res.status(404).json({ error: 'Todo not found' });
+        }
+        
+        // Check if user owns the todo or is admin
+        if (req.user.role === 'admin' || todo.userId === req.user.userId) {
+            req.todo = todo; // Attach todo to request for use in route handler
+            next();
+        } else {
+            return res.status(403).json({ error: 'Access denied. You can only access your own todos.' });
+        }
+    } catch (error) {
+        console.error('❌ [AUTH] Todo ownership check error:', error.message);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
 
 // Send notification via messaging service
 const sendNotification = async (notificationData) => {
@@ -148,12 +172,12 @@ app.get('/health', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get('/todos', async (req, res) => {
-            console.log('📋 [API] Fetching todos for user: anonymous (testing mode)');
+app.get('/todos', authenticateToken, async (req, res) => {
+    console.log('📋 [API] Fetching todos for user:', req.user?.email || 'unknown');
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
         const todos = await todoRepository.find({
-            where: { userId: DEFAULT_TEST_USER_ID }, // Using default user ID for testing
+            where: { userId: req.user.userId }, // Using authenticated user ID
             order: { createdAt: 'DESC' }
         });
         
@@ -197,8 +221,8 @@ app.get('/todos', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.post('/todos', async (req, res) => {
-            console.log('📝 [API] Creating new todo for user: anonymous (testing mode)');
+app.post('/todos', authenticateToken, async (req, res) => {
+    console.log('📝 [API] Creating new todo for user:', req.user?.email || 'unknown');
     try {
         const { task } = req.body;
         
@@ -211,7 +235,7 @@ app.post('/todos', async (req, res) => {
         
         const todo = todoRepository.create({
             task,
-            userId: DEFAULT_TEST_USER_ID, // Using default user ID for testing
+            userId: req.user.userId, // Using authenticated user ID
             completed: false
         });
         
@@ -234,7 +258,7 @@ app.post('/todos', async (req, res) => {
             },
             template: 'todo_reminder',
             todoId: savedTodo.id,
-            userId: DEFAULT_TEST_USER_ID, // Using default user ID for testing
+            userId: req.user.userId, // Using authenticated user ID
             operation: 'todo_created'
         };
         
@@ -281,9 +305,9 @@ app.post('/todos', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get('/todos/:id', async (req, res) => {
+app.get('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) => {
     const todoId = req.params.id;
-            console.log('📋 [API] Fetching todo by ID:', todoId, 'Requested by: anonymous (testing mode)');
+            console.log('📋 [API] Fetching todo by ID:', todoId, 'Requested by:', req.user?.email || 'unknown');
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
@@ -343,9 +367,9 @@ app.get('/todos/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.put('/todos/:id', async (req, res) => {
+app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) => {
     const todoId = req.params.id;
-            console.log('✏️  [API] Updating todo, ID:', todoId, 'Requested by: anonymous (testing mode)');
+            console.log('✏️  [API] Updating todo, ID:', todoId, 'Requested by:', req.user?.email || 'unknown');
     
     try {
         const { task, completed } = req.body;
@@ -387,7 +411,7 @@ app.put('/todos/:id', async (req, res) => {
             },
             template: 'todo_reminder',
             todoId: updatedTodo.id,
-            userId: DEFAULT_TEST_USER_ID, // Using default user ID for testing
+            userId: req.user.userId, // Using authenticated user ID
             operation: 'todo_updated'
         };
         
@@ -429,9 +453,9 @@ app.put('/todos/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.delete('/todos/:id', async (req, res) => {
+app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) => {
     const todoId = req.params.id;
-            console.log('🗑️  [API] Deleting todo, ID:', todoId, 'Requested by: anonymous (testing mode)');
+            console.log('🗑️  [API] Deleting todo, ID:', todoId, 'Requested by:', req.user?.email || 'unknown');
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
@@ -461,7 +485,7 @@ app.delete('/todos/:id', async (req, res) => {
             },
             template: 'todo_reminder',
             todoId: todo.id,
-            userId: DEFAULT_TEST_USER_ID, // Using default user ID for testing
+            userId: req.user.userId, // Using authenticated user ID
             operation: 'todo_deleted'
         };
         
@@ -498,13 +522,13 @@ app.delete('/todos/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get('/todos/completed', async (req, res) => {
-            console.log('✅ [API] Fetching completed todos for user: anonymous (testing mode)');
+app.get('/todos/completed', authenticateToken, async (req, res) => {
+            console.log('✅ [API] Fetching completed todos for user:', req.user?.email || 'unknown');
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
         const todos = await todoRepository.find({
-            where: { userId: DEFAULT_TEST_USER_ID, completed: true }, // Using default user ID for testing
+            where: { userId: req.user.userId, completed: true }, // Using authenticated user ID
             order: { createdAt: 'DESC' }
         });
         
@@ -540,13 +564,13 @@ app.get('/todos/completed', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get('/todos/pending', async (req, res) => {
-            console.log('⏳ [API] Fetching pending todos for user: anonymous (testing mode)');
+app.get('/todos/pending', authenticateToken, async (req, res) => {
+            console.log('⏳ [API] Fetching pending todos for user:', req.user?.email || 'unknown');
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
         const todos = await todoRepository.find({
-            where: { userId: DEFAULT_TEST_USER_ID, completed: false }, // Using default user ID for testing
+            where: { userId: req.user.userId, completed: false }, // Using authenticated user ID
             order: { createdAt: 'DESC' }
         });
         
@@ -585,5 +609,5 @@ app.listen(port, () => {
     console.log('✅ [SERVICE] Todo management enabled');
     console.log('🗄️  [SERVICE] MongoDB Atlas connected');
     console.log('📨 [SERVICE] Messaging service integration enabled');
-    console.log('🔐 [SERVICE] Authentication middleware temporarily disabled for testing');
+    console.log('🔐 [SERVICE] Authentication middleware enabled');
 });

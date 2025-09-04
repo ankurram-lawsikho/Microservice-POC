@@ -6,8 +6,7 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './swagger.js';
 import cors from 'cors';
 
-// NOTE: Authentication is temporarily disabled for testing purposes
-// All endpoints are now publicly accessible without JWT tokens
+// Authentication is handled at the individual service level
 
 dotenv.config();
 

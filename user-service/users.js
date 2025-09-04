@@ -4,7 +4,7 @@ import { AppDataSource } from "./config/database.js";
 import { User } from "./entities/User.js";
 import axios from 'axios';
 import dotenv from 'dotenv';
-// Temporarily removed auth middleware for testing
+import { authenticateToken, requireRole, requireOwnership } from '../auth-service/auth-middleware.js';
 
 dotenv.config();
 
@@ -15,6 +15,23 @@ app.use(express.json());
 
 // Messaging service configuration
 const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
+
+// Custom middleware to check user ownership
+const requireUserOwnership = async (req, res, next) => {
+    try {
+        const userId = req.params.id;
+        
+        // Check if user is accessing their own profile or is admin
+        if (req.user.role === 'admin' || parseInt(req.user.userId) === parseInt(userId)) {
+            next();
+        } else {
+            return res.status(403).json({ error: 'Access denied. You can only access your own profile.' });
+        }
+    } catch (error) {
+        console.error('❌ [AUTH] User ownership check error:', error.message);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+};
 
 // Send notification via messaging service
 const sendNotification = async (notificationData) => {
@@ -138,8 +155,8 @@ app.get('/health', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get('/users', async (req, res) => {
-            console.log('📋 [API] Fetching all users - Admin request from: anonymous (testing mode)');
+app.get('/users', authenticateToken, requireRole('admin'), async (req, res) => {
+            console.log('📋 [API] Fetching all users - Admin request from:', req.user?.email || 'unknown');
     try {
         const userRepository = AppDataSource.getRepository(User);
         const users = await userRepository.find();
@@ -185,9 +202,9 @@ app.get('/users', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.get('/users/:id', async (req, res) => {
+app.get('/users/:id', authenticateToken, requireUserOwnership, async (req, res) => {
     const userId = req.params.id;
-            console.log('👤 [API] Fetching user by ID:', userId, 'Requested by: anonymous (testing mode)');
+            console.log('👤 [API] Fetching user by ID:', userId, 'Requested by:', req.user?.email || 'unknown');
     
     try {
         const userRepository = AppDataSource.getRepository(User);
@@ -378,9 +395,9 @@ app.post('/users', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.put('/users/:id', async (req, res) => {
+app.put('/users/:id', authenticateToken, requireUserOwnership, async (req, res) => {
     const userId = req.params.id;
-            console.log('✏️  [API] Updating user, ID:', userId, 'Requested by: anonymous (testing mode)');
+            console.log('✏️  [API] Updating user, ID:', userId, 'Requested by:', req.user?.email || 'unknown');
     
     try {
         const { name, email } = req.body;
@@ -437,9 +454,9 @@ app.put('/users/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.delete('/users/:id', async (req, res) => {
+app.delete('/users/:id', authenticateToken, requireUserOwnership, async (req, res) => {
     const userId = req.params.id;
-            console.log('🗑️  [API] Deleting user, ID:', userId, 'Requested by: anonymous (testing mode)');
+            console.log('🗑️  [API] Deleting user, ID:', userId, 'Requested by:', req.user?.email || 'unknown');
     
     try {
         const userRepository = AppDataSource.getRepository(User);
@@ -476,5 +493,5 @@ app.listen(port, () => {
     console.log('📍 [SERVICE] Running on port:', port);
     console.log('👥 [SERVICE] User management enabled');
     console.log('📨 [SERVICE] Messaging service integration enabled');
-    console.log('🔐 [SERVICE] Authentication middleware temporarily disabled for testing');
+    console.log('🔐 [SERVICE] Authentication middleware enabled');
 });

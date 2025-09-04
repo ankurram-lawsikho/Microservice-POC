@@ -20,6 +20,30 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 // User service configuration
 const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://localhost:3001';
 
+// Messaging service configuration
+const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
+
+// Send notification via messaging service
+const sendNotification = async (notificationData) => {
+    try {
+        console.log('📤 [MESSAGING] Sending notification via messaging service:', notificationData.type);
+        
+        const response = await axios.post(`${MESSAGING_SERVICE_URL}/api/notifications/publish`, notificationData);
+        
+        if (response.status === 200) {
+            console.log('✅ [MESSAGING] Notification sent successfully via messaging service');
+            return true;
+        } else {
+            console.error('❌ [MESSAGING] Failed to send notification via messaging service');
+            return false;
+        }
+    } catch (error) {
+        console.error('❌ [MESSAGING] Error sending notification:', error.message);
+        // Don't fail the auth operation if notification fails
+        return false;
+    }
+};
+
 // Middleware to validate JWT tokens
 export const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -93,6 +117,27 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: JWT_EXPIRES_IN }
         );
 
+        // Send welcome email notification
+        const welcomeNotificationData = {
+            type: 'welcome_email',
+            recipient: user.email, // Send email as string, not object
+            subject: 'Welcome Back!',
+            content: {
+                userName: user.name,
+                userEmail: user.email,
+                loginTime: new Date().toISOString(),
+                loginLocation: req.ip || 'Unknown'
+            },
+            template: 'welcome',
+            userId: user.id,
+            operation: 'user_login'
+        };
+
+        // Send notification asynchronously (don't wait for it)
+        sendNotification(welcomeNotificationData).catch(error => {
+            console.error('❌ [AUTH] Failed to send welcome email:', error.message);
+        });
+
         console.log('✅ [AUTH] Login successful for user:', email);
         res.json({
             token,
@@ -138,28 +183,15 @@ app.post('/api/auth/register', async (req, res) => {
         const userResponse = await axios.post(`${USER_SERVICE_URL}/users`, userData);
         const newUser = userResponse.data;
 
-        // Generate JWT token for new user
-        const token = jwt.sign(
-            { 
-                userId: newUser.id, 
-                email: newUser.email, 
-                role: 'user',
-                name: newUser.name 
-            },
-            JWT_SECRET,
-            { expiresIn: JWT_EXPIRES_IN }
-        );
-
         console.log('✅ [AUTH] Registration successful for user:', email);
         res.status(201).json({
-            token,
+            message: 'User registered successfully. Please login to get your access token.',
             user: {
                 id: newUser.id,
                 email: newUser.email,
                 name: newUser.name,
                 role: 'user'
-            },
-            expiresIn: JWT_EXPIRES_IN
+            }
         });
 
     } catch (error) {
@@ -227,4 +259,6 @@ app.listen(port, () => {
     console.log('📍 [AUTH] Running on port:', port);
     console.log('🔐 [AUTH] JWT authentication enabled');
     console.log('👥 [AUTH] User service integration enabled');
+    console.log('📧 [AUTH] Welcome email notifications enabled');
+    console.log('📨 [AUTH] Messaging service integration enabled');
 });

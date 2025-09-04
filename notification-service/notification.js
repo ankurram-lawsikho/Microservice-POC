@@ -27,60 +27,234 @@ const createTransporter = () => {
 // RabbitMQ connection for consuming messages only
 let connection, channel;
 const QUEUE_NAME = 'notification_queue';
+const DLQ_NAME = 'notification_dlq';
+
+// Structured logging utility
+const logger = {
+  info: (message, meta = {}) => {
+    console.log(JSON.stringify({
+      level: 'info',
+      timestamp: new Date().toISOString(),
+      service: 'notification-service',
+      message,
+      ...meta
+    }));
+  },
+  error: (message, meta = {}) => {
+    console.error(JSON.stringify({
+      level: 'error',
+      timestamp: new Date().toISOString(),
+      service: 'notification-service',
+      message,
+      ...meta
+    }));
+  },
+  warn: (message, meta = {}) => {
+    console.warn(JSON.stringify({
+      level: 'warn',
+      timestamp: new Date().toISOString(),
+      service: 'notification-service',
+      message,
+      ...meta
+    }));
+  },
+  debug: (message, meta = {}) => {
+    console.log(JSON.stringify({
+      level: 'debug',
+      timestamp: new Date().toISOString(),
+      service: 'notification-service',
+      message,
+      ...meta
+    }));
+  }
+};
+
+// Idempotency tracking (in production, use Redis or database)
+const processedMessages = new Set();
 
 const connectRabbitMQ = async () => {
   try {
     connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
     channel = await connection.createChannel();
     
-    // Ensure queue exists (as consumer)
-    await channel.assertQueue(QUEUE_NAME, {
-      durable: true
-    });
+    // Ensure queues exist (as consumer)
+    await channel.assertQueue(QUEUE_NAME, { durable: true });
+    await channel.assertQueue(DLQ_NAME, { durable: true });
     
-    console.log('✅ [RABBITMQ] Connected as consumer');
-    console.log('📨 [QUEUE] Ready to consume from queue:', QUEUE_NAME);
+    logger.info('RabbitMQ connected as consumer', {
+      mainQueue: QUEUE_NAME,
+      dlq: DLQ_NAME
+    });
     
     // Start consuming messages
     consumeMessages();
   } catch (error) {
-    console.error('❌ [RABBITMQ] Connection error:', error.message);
-    console.log('🔄 [RABBITMQ] Retrying connection in 5 seconds...');
-    setTimeout(connectRabbitMQ, 5000); // Retry after 5 seconds
+    logger.error('RabbitMQ connection failed', {
+      error: error.message,
+      retryIn: '5 seconds'
+    });
+    setTimeout(connectRabbitMQ, 5000);
   }
+};
+
+// Calculate exponential backoff delay
+const calculateBackoffDelay = (retryCount) => {
+  const baseDelay = 1000; // 1 second
+  const maxDelay = 30000; // 30 seconds
+  const delay = Math.min(baseDelay * Math.pow(2, retryCount), maxDelay);
+  return delay + Math.random() * 1000; // Add jitter
 };
 
 // Consume messages from RabbitMQ
 const consumeMessages = async () => {
   try {
-    console.log('📨 [QUEUE] Waiting for messages from queue:', QUEUE_NAME);
+    logger.info('Starting message consumption', { queue: QUEUE_NAME });
     
     channel.consume(QUEUE_NAME, async (msg) => {
       if (msg) {
+        const messageId = msg.properties.messageId || 'unknown';
+        const retryCount = msg.properties.headers?.retryCount || 0;
+        const maxRetries = 3;
+        
         try {
           const notificationData = JSON.parse(msg.content.toString());
-          console.log('📧 [NOTIFICATION] Processing:', {
+          
+          // Check idempotency
+          if (processedMessages.has(messageId)) {
+            logger.warn('Duplicate message detected, skipping', {
+              messageId,
+              type: notificationData.type,
+              recipient: notificationData.recipient
+            });
+            channel.ack(msg);
+            return;
+          }
+          
+          logger.info('Processing notification', {
+            messageId,
             type: notificationData.type,
             recipient: notificationData.recipient,
-            subject: notificationData.subject || 'N/A'
+            subject: notificationData.subject || 'N/A',
+            retryCount
           });
           
           // Send notification based on type
           await sendNotification(notificationData);
           
+          // Mark as processed for idempotency
+          processedMessages.add(messageId);
+          
           // Acknowledge message
           channel.ack(msg);
-          console.log('✅ [NOTIFICATION] Sent successfully to:', notificationData.recipient);
+          logger.info('Notification sent successfully', {
+            messageId,
+            recipient: notificationData.recipient
+          });
         } catch (error) {
-          console.error('❌ [NOTIFICATION] Processing error:', error.message);
-          console.log('🔄 [QUEUE] Requeuing message...');
-          // Reject message and requeue
-          channel.nack(msg, false, true);
+          logger.error('Notification processing failed', {
+            messageId,
+            error: error.message,
+            retryCount
+          });
+          
+          // Check if it's a malformed message (e.g., wrong recipient format)
+          try {
+            const notificationData = JSON.parse(msg.content.toString());
+            if (error.message.includes('No recipients defined') || 
+                (notificationData.recipient && typeof notificationData.recipient === 'object')) {
+              logger.warn('Discarding malformed message', {
+                messageId,
+                reason: 'wrong recipient format'
+              });
+              channel.ack(msg);
+            } else if (retryCount >= maxRetries) {
+              logger.error('Max retries reached, sending to DLQ', {
+                messageId,
+                retryCount,
+                maxRetries
+              });
+              
+              // Send to Dead Letter Queue
+              const dlqHeaders = {
+                ...msg.properties.headers,
+                originalQueue: QUEUE_NAME,
+                failedAt: new Date().toISOString(),
+                failureReason: error.message
+              };
+              
+              const dlqSuccess = channel.sendToQueue(DLQ_NAME, msg.content, {
+                persistent: true,
+                headers: dlqHeaders
+              });
+              
+              if (dlqSuccess) {
+                logger.info('Message sent to DLQ', {
+                  messageId,
+                  dlq: DLQ_NAME
+                });
+                channel.ack(msg);
+              } else {
+                logger.error('Failed to send message to DLQ, discarding', {
+                  messageId
+                });
+                channel.ack(msg);
+              }
+            } else {
+              const backoffDelay = calculateBackoffDelay(retryCount);
+              logger.warn('Retrying message with exponential backoff', {
+                messageId,
+                retryCount: retryCount + 1,
+                maxRetries,
+                backoffDelay: `${Math.round(backoffDelay)}ms`
+              });
+              
+              try {
+                // Republish message with updated retry count and delay
+                const updatedHeaders = {
+                  ...msg.properties.headers,
+                  retryCount: retryCount + 1,
+                  nextRetryAt: new Date(Date.now() + backoffDelay).toISOString()
+                };
+                
+                const success = channel.sendToQueue(QUEUE_NAME, msg.content, {
+                  persistent: true,
+                  headers: updatedHeaders
+                });
+                
+                if (success) {
+                  channel.ack(msg);
+                  logger.info('Message requeued for retry', {
+                    messageId,
+                    retryCount: retryCount + 1
+                  });
+                } else {
+                  logger.error('Failed to requeue message, discarding', {
+                    messageId
+                  });
+                  channel.ack(msg);
+                }
+              } catch (requeueError) {
+                logger.error('Error requeuing message', {
+                  messageId,
+                  error: requeueError.message
+                });
+                channel.ack(msg);
+              }
+            }
+          } catch (parseError) {
+            logger.error('Discarding unparseable message', {
+              messageId,
+              parseError: parseError.message
+            });
+            channel.ack(msg);
+          }
         }
       }
     });
   } catch (error) {
-    console.error('❌ [QUEUE] Consumption error:', error.message);
+    logger.error('Message consumption error', {
+      error: error.message
+    });
   }
 };
 
