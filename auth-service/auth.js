@@ -4,11 +4,15 @@ import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import { createLogger } from '../logger-service/logger.js';
 
 dotenv.config();
 
 const app = express();
 const port = 3007;
+
+// Enhanced structured logger
+const logger = createLogger('auth-service');
 
 app.use(express.json());
 app.use(cors());
@@ -26,19 +30,19 @@ const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://local
 // Send notification via messaging service
 const sendNotification = async (notificationData) => {
     try {
-        console.log('📤 [MESSAGING] Sending notification via messaging service:', notificationData.type);
+        logger.info('Sending notification via messaging service', { type: notificationData.type });
         
         const response = await axios.post(`${MESSAGING_SERVICE_URL}/api/notifications/publish`, notificationData);
         
         if (response.status === 200) {
-            console.log('✅ [MESSAGING] Notification sent successfully via messaging service');
+            logger.success('Notification sent successfully via messaging service');
             return true;
         } else {
-            console.error('❌ [MESSAGING] Failed to send notification via messaging service');
+            logger.error('Failed to send notification via messaging service');
             return false;
         }
     } catch (error) {
-        console.error('❌ [MESSAGING] Error sending notification:', error.message);
+        logger.error('Error sending notification', { error: error.message });
         // Don't fail the auth operation if notification fails
         return false;
     }
@@ -79,12 +83,13 @@ export const requireRole = (role) => {
 
 // Login endpoint
 app.post('/api/auth/login', async (req, res) => {
-    console.log('🔐 [AUTH] Login attempt');
+    
     try {
         const { email, password } = req.body;
+        logger.info('Login attempt', { email });
         
         if (!email || !password) {
-            console.log('⚠️  [AUTH] Missing credentials');
+            logger.warn('Missing credentials');
             return res.status(400).json({ error: 'Email and password are required' });
         }
 
@@ -93,7 +98,7 @@ app.post('/api/auth/login', async (req, res) => {
         const user = userResponse.data;
 
         if (!user) {
-            console.log('❌ [AUTH] User not found:', email);
+            logger.authFailed(email, 'User not found');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -101,7 +106,7 @@ app.post('/api/auth/login', async (req, res) => {
         const isValidPassword = await bcrypt.compare(password, user.password);
         
         if (!isValidPassword) {
-            console.log('❌ [AUTH] Invalid password for user:', email);
+            logger.authFailed(email, 'Invalid password');
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
@@ -135,10 +140,10 @@ app.post('/api/auth/login', async (req, res) => {
 
         // Send notification asynchronously (don't wait for it)
         sendNotification(welcomeNotificationData).catch(error => {
-            console.error('❌ [AUTH] Failed to send welcome email:', error.message);
+            logger.error('Failed to send welcome email', { error: error.message });
         });
 
-        console.log('✅ [AUTH] Login successful for user:', email);
+        logger.authSuccess(user.id, email, user.role);
         res.json({
             token,
             user: {
@@ -255,10 +260,11 @@ process.on('SIGTERM', () => {
 });
 
 app.listen(port, () => {
-    console.log('🚀 [AUTH] Authentication service started');
-    console.log('📍 [AUTH] Running on port:', port);
-    console.log('🔐 [AUTH] JWT authentication enabled');
-    console.log('👥 [AUTH] User service integration enabled');
-    console.log('📧 [AUTH] Welcome email notifications enabled');
-    console.log('📨 [AUTH] Messaging service integration enabled');
+    logger.serviceStart(port, [
+        'jwt-authentication',
+        'user-service-integration',
+        'welcome-email-notifications',
+        'messaging-service-integration',
+        'enhanced-logging'
+    ]);
 });

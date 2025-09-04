@@ -5,11 +5,15 @@ import { User } from "./entities/User.js";
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { authenticateToken, requireRole, requireOwnership } from '../auth-service/auth-middleware.js';
+import { createLogger } from '../logger-service/logger.js';
 
 dotenv.config();
 
 const app = express();
 const port = 3001;
+
+// Enhanced structured logger
+const logger = createLogger('user-service');
 
 app.use(express.json());
 
@@ -57,10 +61,10 @@ const sendNotification = async (notificationData) => {
 // Initialize database connection
 AppDataSource.initialize()
     .then(() => {
-        console.log('✅ [DATABASE] Connection established');
+        logger.databaseConnected('PostgreSQL');
     })
     .catch((error) => {
-        console.error('❌ [DATABASE] Connection failed:', error.message);
+        logger.databaseError(error);
     });
 
 /**
@@ -88,12 +92,12 @@ AppDataSource.initialize()
  *                   format: date-time
  */
 app.get('/health', async (req, res) => {
-    console.log('🏥 [API] Health check requested');
+    logger.info('Health check requested');
     try {
         const isInitialized = AppDataSource.isInitialized;
         
         if (!isInitialized) {
-            console.log('⚠️  [HEALTH] Database not initialized');
+            logger.warn('Database not initialized');
             return res.status(503).json({
                 status: 'ERROR',
                 database: 'PostgreSQL',
@@ -114,7 +118,11 @@ app.get('/health', async (req, res) => {
             messagingStatus = 'unavailable';
         }
         
-        console.log('✅ [HEALTH] Health check completed, user count:', userCount);
+        logger.info('Health check completed', { 
+            userCount,
+            messagingStatus
+        });
+        
         res.json({
             status: 'OK',
             database: 'PostgreSQL',
@@ -124,7 +132,7 @@ app.get('/health', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ [HEALTH] Health check error:', error.message);
+        logger.error('Health check error', { error: error.message });
         res.status(500).json({
             status: 'ERROR',
             database: 'PostgreSQL',
@@ -156,7 +164,10 @@ app.get('/health', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 app.get('/users', authenticateToken, requireRole('admin'), async (req, res) => {
-            console.log('📋 [API] Fetching all users - Admin request from:', req.user?.email || 'unknown');
+    logger.info('Fetching all users - Admin request', { 
+        adminId: req.user?.userId,
+        adminEmail: req.user?.email 
+    });
     try {
         const userRepository = AppDataSource.getRepository(User);
         const users = await userRepository.find();
@@ -167,10 +178,16 @@ app.get('/users', authenticateToken, requireRole('admin'), async (req, res) => {
             return userWithoutPassword;
         });
         
-        console.log('✅ [API] Retrieved users, count:', usersResponse.length);
+        logger.info('Retrieved users', { 
+            count: usersResponse.length,
+            adminId: req.user?.userId 
+        });
         res.json(usersResponse);
     } catch (error) {
-        console.error('❌ [API] Error fetching users:', error.message);
+        logger.error('Error fetching users', { 
+            adminId: req.user?.userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to fetch users' });
     }
 });
@@ -204,24 +221,31 @@ app.get('/users', authenticateToken, requireRole('admin'), async (req, res) => {
  */
 app.get('/users/:id', authenticateToken, requireUserOwnership, async (req, res) => {
     const userId = req.params.id;
-            console.log('👤 [API] Fetching user by ID:', userId, 'Requested by:', req.user?.email || 'unknown');
+    logger.info('Fetching user by ID', { 
+        userId,
+        requestedBy: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const userRepository = AppDataSource.getRepository(User);
         const user = await userRepository.findOne({ where: { id: parseInt(userId) } });
         
         if (!user) {
-            console.log('⚠️  [API] User not found, ID:', userId);
+            logger.warn('User not found', { userId });
             return res.status(404).json({ error: 'User not found' });
         }
         
         // Remove password from response
         const { password, ...userResponse } = user;
         
-        console.log('✅ [API] User retrieved successfully, ID:', userId);
+        logger.info('User retrieved successfully', { userId });
         res.json(userResponse);
     } catch (error) {
-        console.error('❌ [API] Error fetching user:', error.message);
+        logger.error('Error fetching user', { 
+            userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to fetch user' });
     }
 });
@@ -255,21 +279,24 @@ app.get('/users/:id', authenticateToken, requireUserOwnership, async (req, res) 
  */
 app.get('/users/email/:email', async (req, res) => {
     const email = req.params.email;
-    console.log('📧 [API] Fetching user by email:', email);
+    logger.info('Fetching user by email', { email });
     
     try {
         const userRepository = AppDataSource.getRepository(User);
         const user = await userRepository.findOne({ where: { email } });
         
         if (!user) {
-            console.log('⚠️  [API] User not found, email:', email);
+            logger.warn('User not found by email', { email });
             return res.status(404).json({ error: 'User not found' });
         }
         
-        console.log('✅ [API] User retrieved successfully, email:', email);
+        logger.info('User retrieved successfully by email', { email });
         res.json(user);
     } catch (error) {
-        console.error('❌ [API] Error fetching user by email:', error.message);
+        logger.error('Error fetching user by email', { 
+            email,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to fetch user' });
     }
 });
@@ -307,12 +334,16 @@ app.get('/users/email/:email', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 app.post('/users', async (req, res) => {
-    console.log('📝 [API] Creating new user');
+    logger.info('Creating new user');
     try {
         const { name, email, password } = req.body;
         
         if (!name || !email || !password) {
-            console.log('⚠️  [API] Missing required fields for user creation');
+            logger.warn('Missing required fields for user creation', { 
+                hasName: !!name,
+                hasEmail: !!email,
+                hasPassword: !!password
+            });
             return res.status(400).json({ error: 'Name, email, and password are required' });
         }
         
@@ -321,7 +352,7 @@ app.post('/users', async (req, res) => {
         // Check if user with email already exists
         const existingUser = await userRepository.findOne({ where: { email } });
         if (existingUser) {
-            console.log('⚠️  [API] User with email already exists:', email);
+            logger.warn('User with email already exists', { email });
             return res.status(409).json({ error: 'User with this email already exists' });
         }
         
@@ -334,7 +365,7 @@ app.post('/users', async (req, res) => {
         
         const savedUser = await userRepository.save(user);
         
-        console.log('✅ [API] User created successfully, ID:', savedUser.id);
+        logger.userCreated(savedUser.id, email, 'user');
         
         // Send welcome notification via messaging service
         const notificationData = {
@@ -357,7 +388,7 @@ app.post('/users', async (req, res) => {
         res.status(201).json(userResponse);
         
     } catch (error) {
-        console.error('❌ [API] User creation error:', error.message);
+        logger.error('User creation error', { error: error.message });
         res.status(500).json({ error: 'Failed to create user' });
     }
 });
@@ -397,13 +428,17 @@ app.post('/users', async (req, res) => {
  */
 app.put('/users/:id', authenticateToken, requireUserOwnership, async (req, res) => {
     const userId = req.params.id;
-            console.log('✏️  [API] Updating user, ID:', userId, 'Requested by:', req.user?.email || 'unknown');
+    logger.info('Updating user', { 
+        userId,
+        requestedBy: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const { name, email } = req.body;
         
         if (!name && !email) {
-            console.log('⚠️  [API] No fields to update for user ID:', userId);
+            logger.warn('No fields to update for user', { userId });
             return res.status(400).json({ error: 'At least one field (name or email) is required' });
         }
         
@@ -411,7 +446,7 @@ app.put('/users/:id', authenticateToken, requireUserOwnership, async (req, res) 
         const user = await userRepository.findOne({ where: { id: parseInt(userId) } });
         
         if (!user) {
-            console.log('⚠️  [API] User not found for update, ID:', userId);
+            logger.warn('User not found for update', { userId });
             return res.status(404).json({ error: 'User not found' });
         }
         
@@ -423,10 +458,13 @@ app.put('/users/:id', authenticateToken, requireUserOwnership, async (req, res) 
         // Remove password from response
         const { password, ...userResponse } = updatedUser;
         
-        console.log('✅ [API] User updated successfully, ID:', userId);
+        logger.userUpdated(userId, email);
         res.json(userResponse);
     } catch (error) {
-        console.error('❌ [API] Error updating user:', error.message);
+        logger.error('Error updating user', { 
+            userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to update user' });
     }
 });
@@ -456,42 +494,61 @@ app.put('/users/:id', authenticateToken, requireUserOwnership, async (req, res) 
  */
 app.delete('/users/:id', authenticateToken, requireUserOwnership, async (req, res) => {
     const userId = req.params.id;
-            console.log('🗑️  [API] Deleting user, ID:', userId, 'Requested by:', req.user?.email || 'unknown');
+    logger.info('Deleting user', { 
+        userId,
+        requestedBy: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const userRepository = AppDataSource.getRepository(User);
         const user = await userRepository.findOne({ where: { id: parseInt(userId) } });
         
         if (!user) {
-            console.log('⚠️  [API] User not found for deletion, ID:', userId);
+            logger.warn('User not found for deletion', { userId });
             return res.status(404).json({ error: 'User not found' });
         }
         
         await userRepository.remove(user);
         
-        console.log('✅ [API] User deleted successfully, ID:', userId);
+        logger.userDeleted(userId, user.email);
         res.status(204).send();
     } catch (error) {
-        console.error('❌ [API] Error deleting user:', error.message);
+        logger.error('Error deleting user', { 
+            userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to delete user' });
     }
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-    console.log('🔌 Shutting down user service...');
+    logger.info('Received SIGINT, shutting down gracefully');
+    if (AppDataSource.isInitialized) {
+        await AppDataSource.destroy();
+        logger.info('Database connection closed');
+    }
+    logger.serviceStop();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-    console.log('🔌 Shutting down user service...');
+    logger.info('Received SIGTERM, shutting down gracefully');
+    if (AppDataSource.isInitialized) {
+        await AppDataSource.destroy();
+        logger.info('Database connection closed');
+    }
+    logger.serviceStop();
     process.exit(0);
 });
 
 app.listen(port, () => {
-    console.log('🚀 [SERVICE] User service started');
-    console.log('📍 [SERVICE] Running on port:', port);
-    console.log('👥 [SERVICE] User management enabled');
-    console.log('📨 [SERVICE] Messaging service integration enabled');
-    console.log('🔐 [SERVICE] Authentication middleware enabled');
+    logger.serviceStart(port, [
+        'user-management',
+        'postgresql',
+        'messaging-integration',
+        'authentication-middleware',
+        'enhanced-logging'
+    ]);
 });

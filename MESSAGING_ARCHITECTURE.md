@@ -13,7 +13,7 @@ This microservices architecture has been restructured to use a dedicated **Messa
 ┌─────────────────┐    HTTP     ┌──────────────────┐    RabbitMQ    ┌──────────────────┐
 │   User Service  │ ──────────→ │ Messaging Service│ ──────────────→ │ Notification     │
 │   (Port 3001)   │             │   (Port 3006)    │                 │ Service         │
-└─────────────────┘             └──────────────────┘                 │ (Port 3004)     │
+└─────────────────┘             └──────────────────┘                 │ (Port 3003)     │
                                                                       └──────────────────┘
 ┌─────────────────┐    HTTP     ┌──────────────────┐
 │  Todo Service   │ ──────────→ │ Messaging Service│
@@ -31,7 +31,7 @@ This microservices architecture has been restructured to use a dedicated **Messa
   - Handles queue creation and management
   - Acts as the single point of contact for all messaging operations
 
-### 2. Notification Service (Port 3004)
+### 2. Notification Service (Port 3003)
 - **Purpose**: Consumes messages and sends actual notifications
 - **Responsibilities**:
   - Consumes messages from RabbitMQ queues
@@ -53,7 +53,7 @@ This microservices architecture has been restructured to use a dedicated **Messa
   - Sends notifications via messaging service HTTP API
   - No direct RabbitMQ connection
 
-### 5. API Gateway (Port 3005)
+### 5. API Gateway (Port 3000)
 - **Purpose**: Service routing and health monitoring
 - **Responsibilities**:
   - Routes requests to appropriate services
@@ -183,7 +183,7 @@ MESSAGING_SERVICE_URL=http://localhost:3006
 
 ### Notification Service
 ```bash
-NOTIFICATION_SERVICE_PORT=3004
+NOTIFICATION_SERVICE_PORT=3003
 RABBITMQ_URL=amqp://localhost
 EMAIL_SERVICE=gmail
 EMAIL_USER=your-email@gmail.com

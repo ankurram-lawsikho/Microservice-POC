@@ -1,0 +1,25 @@
+{
+  "name": "logger-service",
+  "version": "1.0.0",
+  "description": "Enhanced structured logging service for microservices",
+  "main": "logger.js",
+  "type": "module",
+  "scripts": {
+    "start": "node logger.js",
+    "test": "node test-logger.js"
+  },
+  "keywords": [
+    "logging",
+    "microservices",
+    "structured-logging",
+    "chalk"
+  ],
+  "author": "Microservices POC",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

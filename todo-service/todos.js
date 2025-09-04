@@ -5,11 +5,15 @@ import { Todo } from "./entities/Todo.js";
 import axios from 'axios';
 import dotenv from 'dotenv';
 import { authenticateToken, requireOwnership } from '../auth-service/auth-middleware.js';
+import { createLogger } from '../logger-service/logger.js';
 
 dotenv.config();
 
 const app = express();
 const port = 3002;
+
+// Enhanced structured logger
+const logger = createLogger('todo-service');
 
 app.use(express.json());
 
@@ -38,7 +42,7 @@ const requireTodoOwnership = async (req, res, next) => {
             return res.status(403).json({ error: 'Access denied. You can only access your own todos.' });
         }
     } catch (error) {
-        console.error('❌ [AUTH] Todo ownership check error:', error.message);
+        logger.error('Todo ownership check error', { error: error.message });
         return res.status(500).json({ error: 'Internal server error' });
     }
 };
@@ -46,19 +50,19 @@ const requireTodoOwnership = async (req, res, next) => {
 // Send notification via messaging service
 const sendNotification = async (notificationData) => {
   try {
-    console.log('📤 [MESSAGING] Sending notification via messaging service:', notificationData.type);
+    logger.info('Sending notification via messaging service', { type: notificationData.type });
     
     const response = await axios.post(`${MESSAGING_SERVICE_URL}/api/notifications/publish`, notificationData);
     
     if (response.status === 200) {
-      console.log('✅ [MESSAGING] Notification sent successfully via messaging service');
+      logger.info('Notification sent successfully via messaging service');
       return true;
     } else {
-      console.error('❌ [MESSAGING] Failed to send notification via messaging service');
+      logger.error('Failed to send notification via messaging service');
       return false;
     }
   } catch (error) {
-    console.error('❌ [MESSAGING] Error sending notification:', error.message);
+    logger.error('Error sending notification', { error: error.message });
     // Don't fail the todo operation if notification fails
     return false;
   }
@@ -67,10 +71,10 @@ const sendNotification = async (notificationData) => {
 // Initialize database connection
 AppDataSource.initialize()
     .then(() => {
-        console.log('✅ [DATABASE] MongoDB connection established');
+        logger.databaseConnected('MongoDB Atlas');
     })
     .catch((error) => {
-        console.error('❌ [DATABASE] MongoDB connection failed:', error.message);
+        logger.databaseError(error);
     });
 
 /**
@@ -102,12 +106,12 @@ AppDataSource.initialize()
  *                   format: date-time
  */
 app.get('/health', async (req, res) => {
-    console.log('🏥 [API] Health check requested');
+    logger.info('Health check requested');
     try {
         const isInitialized = AppDataSource.isInitialized;
         
         if (!isInitialized) {
-            console.log('⚠️  [HEALTH] Database not initialized');
+            logger.warn('Database not initialized');
             return res.status(503).json({
                 status: 'ERROR',
                 database: 'MongoDB Atlas',
@@ -128,7 +132,11 @@ app.get('/health', async (req, res) => {
             messagingStatus = 'unavailable';
         }
         
-        console.log('✅ [HEALTH] Health check completed, todo count:', todoCount);
+        logger.info('Health check completed', { 
+            todoCount,
+            messagingStatus
+        });
+        
         res.json({
             status: 'OK',
             database: 'MongoDB Atlas',
@@ -139,7 +147,7 @@ app.get('/health', async (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('❌ [HEALTH] Health check error:', error.message);
+        logger.error('Health check error', { error: error.message });
         res.status(500).json({
             status: 'ERROR',
             database: 'MongoDB Atlas',
@@ -173,18 +181,27 @@ app.get('/health', async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 app.get('/todos', authenticateToken, async (req, res) => {
-    console.log('📋 [API] Fetching todos for user:', req.user?.email || 'unknown');
+    logger.info('Fetching todos for user', { 
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
         const todos = await todoRepository.find({
-            where: { userId: req.user.userId }, // Using authenticated user ID
+            where: { userId: req.user.userId },
             order: { createdAt: 'DESC' }
         });
         
-        console.log('✅ [API] Retrieved todos for user, count:', todos.length);
+        logger.info('Retrieved todos for user', { 
+            userId: req.user.userId,
+            count: todos.length 
+        });
         res.json(todos);
     } catch (error) {
-        console.error('❌ [API] Error fetching todos:', error.message);
+        logger.error('Error fetching todos', { 
+            userId: req.user?.userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to fetch todos' });
     }
 });
@@ -222,12 +239,17 @@ app.get('/todos', authenticateToken, async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 app.post('/todos', authenticateToken, async (req, res) => {
-    console.log('📝 [API] Creating new todo for user:', req.user?.email || 'unknown');
+    logger.info('Creating new todo for user', { 
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
     try {
         const { task } = req.body;
         
         if (!task) {
-            console.log('⚠️  [API] Missing required fields for todo creation');
+            logger.warn('Missing required fields for todo creation', { 
+                userId: req.user?.userId 
+            });
             return res.status(400).json({ error: 'Task is required' });
         }
         
@@ -235,21 +257,21 @@ app.post('/todos', authenticateToken, async (req, res) => {
         
         const todo = todoRepository.create({
             task,
-            userId: req.user.userId, // Using authenticated user ID
+            userId: req.user.userId,
             completed: false
         });
         
         const savedTodo = await todoRepository.save(todo);
         
-        console.log('✅ [API] Todo created successfully, ID:', savedTodo.id);
+        logger.todoCreated(savedTodo.id, savedTodo.task, req.user.userId);
         
         // Send todo creation notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
-            recipient: 'test@example.com', // Default email for testing
+            recipient: 'test@example.com',
             subject: 'New Todo Created',
             content: {
-                name: 'Test User', // Default name for testing
+                name: 'Test User',
                 message: 'A new todo has been created for you',
                 todos: [{
                     task: savedTodo.task,
@@ -258,7 +280,7 @@ app.post('/todos', authenticateToken, async (req, res) => {
             },
             template: 'todo_reminder',
             todoId: savedTodo.id,
-            userId: req.user.userId, // Using authenticated user ID
+            userId: req.user.userId,
             operation: 'todo_created'
         };
         
@@ -267,7 +289,10 @@ app.post('/todos', authenticateToken, async (req, res) => {
         res.status(201).json(savedTodo);
         
     } catch (error) {
-        console.error('❌ [API] Todo creation error:', error.message);
+        logger.error('Todo creation error', { 
+            userId: req.user?.userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to create todo' });
     }
 });
@@ -307,7 +332,11 @@ app.post('/todos', authenticateToken, async (req, res) => {
  */
 app.get('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) => {
     const todoId = req.params.id;
-            console.log('📋 [API] Fetching todo by ID:', todoId, 'Requested by:', req.user?.email || 'unknown');
+    logger.info('Fetching todo by ID', { 
+        todoId,
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
@@ -316,14 +345,17 @@ app.get('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         });
         
         if (!todo) {
-            console.log('⚠️  [API] Todo not found, ID:', todoId);
+            logger.warn('Todo not found', { todoId });
             return res.status(404).json({ error: 'Todo not found' });
         }
         
-        console.log('✅ [API] Todo retrieved successfully, ID:', todoId);
+        logger.info('Todo retrieved successfully', { todoId });
         res.json(todo);
     } catch (error) {
-        console.error('❌ [API] Error fetching todo:', error.message);
+        logger.error('Error fetching todo', { 
+            todoId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to fetch todo' });
     }
 });
@@ -369,13 +401,17 @@ app.get('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
  */
 app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) => {
     const todoId = req.params.id;
-            console.log('✏️  [API] Updating todo, ID:', todoId, 'Requested by:', req.user?.email || 'unknown');
+    logger.info('Updating todo', { 
+        todoId,
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const { task, completed } = req.body;
         
         if (task === undefined && completed === undefined) {
-            console.log('⚠️  [API] No fields to update for todo ID:', todoId);
+            logger.warn('No fields to update for todo', { todoId });
             return res.status(400).json({ error: 'At least one field (task or completed) is required for update' });
         }
         
@@ -383,7 +419,7 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         const todo = await todoRepository.findOne({ where: { id: todoId } });
         
         if (!todo) {
-            console.log('⚠️  [API] Todo not found for update, ID:', todoId);
+            logger.warn('Todo not found for update', { todoId });
             return res.status(404).json({ error: 'Todo not found' });
         }
         
@@ -394,15 +430,15 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         
         const updatedTodo = await todoRepository.save(todo);
         
-        console.log('✅ [API] Todo updated successfully, ID:', todoId);
+        logger.todoUpdated(updatedTodo.id, updatedTodo.task, req.user.userId);
         
         // Send todo update notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
-            recipient: 'test@example.com', // Default email for testing
+            recipient: 'test@example.com',
             subject: 'Todo Updated',
             content: {
-                name: 'Test User', // Default name for testing
+                name: 'Test User',
                 message: 'A todo has been updated for you',
                 todos: [{
                     task: updatedTodo.task,
@@ -411,7 +447,7 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
             },
             template: 'todo_reminder',
             todoId: updatedTodo.id,
-            userId: req.user.userId, // Using authenticated user ID
+            userId: req.user.userId,
             operation: 'todo_updated'
         };
         
@@ -419,7 +455,10 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         
         res.json(updatedTodo);
     } catch (error) {
-        console.error('❌ [API] Error updating todo:', error.message);
+        logger.error('Error updating todo', { 
+            todoId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to update todo' });
     }
 });
@@ -455,28 +494,32 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
  */
 app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) => {
     const todoId = req.params.id;
-            console.log('🗑️  [API] Deleting todo, ID:', todoId, 'Requested by:', req.user?.email || 'unknown');
+    logger.info('Deleting todo', { 
+        todoId,
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
         const todo = await todoRepository.findOne({ where: { id: todoId } });
         
         if (!todo) {
-            console.log('⚠️  [API] Todo not found for deletion, ID:', todoId);
+            logger.warn('Todo not found for deletion', { todoId });
             return res.status(404).json({ error: 'Todo not found' });
         }
         
         await todoRepository.remove(todo);
         
-        console.log('✅ [API] Todo deleted successfully, ID:', todoId);
+        logger.todoDeleted(todoId, req.user.userId);
         
         // Send todo deletion notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
-            recipient: 'test@example.com', // Default email for testing
+            recipient: 'test@example.com',
             subject: 'Todo Deleted',
             content: {
-                name: 'Test User', // Default name for testing
+                name: 'Test User',
                 message: 'A todo has been deleted for you',
                 todos: [{
                     task: todo.task,
@@ -485,7 +528,7 @@ app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, re
             },
             template: 'todo_reminder',
             todoId: todo.id,
-            userId: req.user.userId, // Using authenticated user ID
+            userId: req.user.userId,
             operation: 'todo_deleted'
         };
         
@@ -493,7 +536,10 @@ app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, re
         
         res.status(204).send();
     } catch (error) {
-        console.error('❌ [API] Error deleting todo:', error.message);
+        logger.error('Error deleting todo', { 
+            todoId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to delete todo' });
     }
 });
@@ -523,19 +569,28 @@ app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, re
  *               $ref: '#/components/schemas/Error'
  */
 app.get('/todos/completed', authenticateToken, async (req, res) => {
-            console.log('✅ [API] Fetching completed todos for user:', req.user?.email || 'unknown');
+    logger.info('Fetching completed todos for user', { 
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
         const todos = await todoRepository.find({
-            where: { userId: req.user.userId, completed: true }, // Using authenticated user ID
+            where: { userId: req.user.userId, completed: true },
             order: { createdAt: 'DESC' }
         });
         
-        console.log('✅ [API] Retrieved completed todos for user, count:', todos.length);
+        logger.info('Retrieved completed todos for user', { 
+            userId: req.user.userId,
+            count: todos.length 
+        });
         res.json(todos);
     } catch (error) {
-        console.error('❌ [API] Error fetching completed todos:', error.message);
+        logger.error('Error fetching completed todos', { 
+            userId: req.user?.userId,
+            error: error.message 
+        });
         res.status(500).json({ error: 'Failed to fetch completed todos' });
     }
 });
@@ -565,7 +620,7 @@ app.get('/todos/completed', authenticateToken, async (req, res) => {
  *               $ref: '#/components/schemas/Error'
  */
 app.get('/todos/pending', authenticateToken, async (req, res) => {
-            console.log('⏳ [API] Fetching pending todos for user:', req.user?.email || 'unknown');
+    logger.info('Fetching pending todos for user', { email: req.user?.email || 'unknown' });
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
@@ -574,40 +629,41 @@ app.get('/todos/pending', authenticateToken, async (req, res) => {
             order: { createdAt: 'DESC' }
         });
         
-        console.log('✅ [API] Retrieved pending todos for user, count:', todos.length);
+        logger.info('Retrieved pending todos for user', { count: todos.length });
         res.json(todos);
     } catch (error) {
-        console.error('❌ [API] Error fetching pending todos:', error.message);
+        logger.error('Error fetching pending todos', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch pending todos' });
     }
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-    console.log('🔄 [SHUTDOWN] Received SIGINT, shutting down gracefully...');
+    logger.info('Received SIGINT, shutting down gracefully');
     if (AppDataSource.isInitialized) {
         await AppDataSource.destroy();
-        console.log('✅ [SHUTDOWN] Database connection closed');
+        logger.info('Database connection closed');
     }
-    console.log('✅ [SHUTDOWN] Todo service stopped');
+    logger.serviceStop();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-    console.log('🔄 [SHUTDOWN] Received SIGTERM, shutting down gracefully...');
+    logger.info('Received SIGTERM, shutting down gracefully');
     if (AppDataSource.isInitialized) {
         await AppDataSource.destroy();
-        console.log('✅ [SHUTDOWN] Database connection closed');
+        logger.info('Database connection closed');
     }
-    console.log('✅ [SHUTDOWN] Todo service stopped');
+    logger.serviceStop();
     process.exit(0);
 });
 
 app.listen(port, () => {
-    console.log('🚀 [SERVICE] Todo service started');
-    console.log('📍 [SERVICE] Running on port:', port);
-    console.log('✅ [SERVICE] Todo management enabled');
-    console.log('🗄️  [SERVICE] MongoDB Atlas connected');
-    console.log('📨 [SERVICE] Messaging service integration enabled');
-    console.log('🔐 [SERVICE] Authentication middleware enabled');
+    logger.serviceStart(port, [
+        'todo-management',
+        'mongodb-atlas',
+        'messaging-integration',
+        'authentication-middleware',
+        'enhanced-logging'
+    ]);
 });

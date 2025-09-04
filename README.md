@@ -1,6 +1,6 @@
 # 🚀 Microservices POC with Authentication & Messaging
 
-A comprehensive microservices architecture demonstrating modern backend development patterns including authentication, authorization, messaging, and service communication.
+A comprehensive microservices architecture demonstrating modern backend development patterns including authentication, authorization, messaging, service communication, and centralized logging.
 
 ## 🏗️ Architecture Overview
 
@@ -96,6 +96,15 @@ The authentication system acts as the **bouncer** for your microservices archite
   - Nodemailer integration
   - Health monitoring
 
+### **7. Logger Service** (`logger-service/`) ⭐ **NEW**
+- **Port**: Shared (imported by all services)
+- **Purpose**: Centralized structured logging
+- **Features**:
+  - Color-coded logging with beautiful formatting
+  - Service-specific logging methods
+  - Performance and error logging
+  - Debug logging for development
+
 ## 🔑 **Authentication Endpoints**
 
 ### **Public Endpoints**
@@ -136,6 +145,7 @@ cd ../user-service && npm install
 cd ../todo-service && npm install
 cd ../messaging-service && npm install
 cd ../notification-service && npm install
+cd ../logger-service && npm install
 cd ../api-gateway && npm install
 ```
 
@@ -171,6 +181,9 @@ cd messaging-service && npm start
 
 # Terminal 6: Start Notification Service
 cd notification-service && npm start
+
+# Terminal 7: Start Logger Service (if running standalone)
+cd logger-service && npm start
 ```
 
 ### **4. Test Authentication**
@@ -264,9 +277,18 @@ curl http://localhost:3000/services/health
 - ✅ Todo Service: `http://localhost:3002`
 - 📨 Messaging Service: `http://localhost:3006`
 - 📧 Notification Service: `http://localhost:3003`
+- 📝 Logger Service: Shared (imported by all services)
 
 ## 📚 **Documentation**
 
+- **[Microservices Overview](./MICROSERVICES_OVERVIEW.md)** - Complete architecture overview
+- **[API Gateway](./API_GATEWAY.md)** - Gateway service documentation
+- **[Authentication Service](./AUTH_SERVICE.md)** - Auth service documentation
+- **[User Service](./USER_SERVICE.md)** - User service documentation
+- **[Todo Service](./TODO_SERVICE.md)** - Todo service documentation
+- **[Messaging Service](./MESSAGING_SERVICE.md)** - Messaging service documentation
+- **[Notification Service](./NOTIFICATION_SERVICE.md)** - Notification service documentation
+- **[Logger Service](./LOGGER_SERVICE.md)** - Logger service documentation
 - **[Authentication Architecture](./AUTHENTICATION_ARCHITECTURE.md)** - Complete auth system guide
 - **[Messaging Architecture](./MESSAGING_ARCHITECTURE.md)** - RabbitMQ integration details
 - **[Database Setup](./DATABASE_SETUP.md)** - Database configuration guide

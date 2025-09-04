@@ -3,6 +3,7 @@ import amqp from 'amqplib';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { createLogger } from '../logger-service/logger.js';
 
 dotenv.config();
 
@@ -19,45 +20,8 @@ const QUEUE_NAME = 'notification_queue';
 const DLQ_NAME = 'notification_dlq';
 const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost';
 
-// Structured logging utility
-const logger = {
-  info: (message, meta = {}) => {
-    console.log(JSON.stringify({
-      level: 'info',
-      timestamp: new Date().toISOString(),
-      service: 'messaging-service',
-      message,
-      ...meta
-    }));
-  },
-  error: (message, meta = {}) => {
-    console.error(JSON.stringify({
-      level: 'error',
-      timestamp: new Date().toISOString(),
-      service: 'messaging-service',
-      message,
-      ...meta
-    }));
-  },
-  warn: (message, meta = {}) => {
-    console.warn(JSON.stringify({
-      level: 'warn',
-      timestamp: new Date().toISOString(),
-      service: 'messaging-service',
-      message,
-      ...meta
-    }));
-  },
-  debug: (message, meta = {}) => {
-    console.log(JSON.stringify({
-      level: 'debug',
-      timestamp: new Date().toISOString(),
-      service: 'messaging-service',
-      message,
-      ...meta
-    }));
-  }
-};
+// Enhanced structured logger
+const logger = createLogger('messaging-service');
 
 // Initialize RabbitMQ connection
 const initializeRabbitMQ = async () => {
@@ -75,15 +39,10 @@ const initializeRabbitMQ = async () => {
       durable: true
     });
     
-    logger.info('RabbitMQ connected successfully', {
-      queue: QUEUE_NAME,
-      dlq: DLQ_NAME
-    });
+    logger.queueConnected(`${QUEUE_NAME}, ${DLQ_NAME}`);
   } catch (error) {
-    logger.error('RabbitMQ connection failed', {
-      error: error.message,
-      retryIn: '5 seconds'
-    });
+    logger.queueError(error, `${QUEUE_NAME}, ${DLQ_NAME}`);
+    logger.info('Retrying connection in 5 seconds...');
     setTimeout(initializeRabbitMQ, 5000);
   }
 };
@@ -116,12 +75,7 @@ const publishMessage = async (queueName, messageData) => {
     });
     
     if (success) {
-      logger.info('Message published successfully', {
-        queue: queueName,
-        messageId: messageId,
-        type: messageData.type,
-        recipient: messageData.recipient
-      });
+      logger.messagePublished(messageId, queueName, messageData.type, messageData.recipient);
       return { success: true, messageId };
     } else {
       throw new Error('Failed to publish message to queue');
@@ -149,17 +103,11 @@ app.post('/api/messages/publish', async (req, res) => {
       return res.status(400).json({ error: 'Queue name and data are required' });
     }
     
-    logger.info('Publishing message via API', {
-      queue: queue,
-      type: data?.type
-    });
-    
+    const startTime = Date.now();
     const result = await publishMessage(queue, data);
+    const duration = Date.now() - startTime;
     
-    logger.info('Message published via API successfully', {
-      queue: queue,
-      messageId: result.messageId
-    });
+    logger.apiRequest('POST', '/api/messages/publish', 200, duration);
     
     res.json({ 
       message: 'Message published successfully',
@@ -189,18 +137,11 @@ app.post('/api/notifications/publish', async (req, res) => {
       return res.status(400).json({ error: 'Type and recipient are required for notifications' });
     }
     
-    logger.info('Publishing notification via API', {
-      type: notificationData.type,
-      recipient: notificationData.recipient
-    });
-    
+    const startTime = Date.now();
     const result = await publishMessage(QUEUE_NAME, notificationData);
+    const duration = Date.now() - startTime;
     
-    logger.info('Notification published via API successfully', {
-      type: notificationData.type,
-      recipient: notificationData.recipient,
-      messageId: result.messageId
-    });
+    logger.apiRequest('POST', '/api/notifications/publish', 200, duration);
     
     res.json({ 
       message: 'Notification published successfully',
@@ -373,16 +314,12 @@ process.on('SIGTERM', async () => {
 
 // Start the service
 app.listen(PORT, () => {
-  logger.info('Messaging service started', {
-    port: PORT,
-    features: [
-      'idempotency',
-      'dead-letter-queue',
-      'structured-logging',
-      'retry-mechanism'
-    ],
-    queues: [QUEUE_NAME, DLQ_NAME]
-  });
+  logger.serviceStart(PORT, [
+    'idempotency',
+    'dead-letter-queue',
+    'enhanced-logging',
+    'retry-mechanism'
+  ]);
   
   // Connect to RabbitMQ
   initializeRabbitMQ();

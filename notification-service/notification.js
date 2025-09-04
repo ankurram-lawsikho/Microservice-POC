@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
 import amqp from 'amqplib';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { createLogger } from '../logger-service/logger.js';
 
 dotenv.config();
 
@@ -29,45 +30,8 @@ let connection, channel;
 const QUEUE_NAME = 'notification_queue';
 const DLQ_NAME = 'notification_dlq';
 
-// Structured logging utility
-const logger = {
-  info: (message, meta = {}) => {
-    console.log(JSON.stringify({
-      level: 'info',
-      timestamp: new Date().toISOString(),
-      service: 'notification-service',
-      message,
-      ...meta
-    }));
-  },
-  error: (message, meta = {}) => {
-    console.error(JSON.stringify({
-      level: 'error',
-      timestamp: new Date().toISOString(),
-      service: 'notification-service',
-      message,
-      ...meta
-    }));
-  },
-  warn: (message, meta = {}) => {
-    console.warn(JSON.stringify({
-      level: 'warn',
-      timestamp: new Date().toISOString(),
-      service: 'notification-service',
-      message,
-      ...meta
-    }));
-  },
-  debug: (message, meta = {}) => {
-    console.log(JSON.stringify({
-      level: 'debug',
-      timestamp: new Date().toISOString(),
-      service: 'notification-service',
-      message,
-      ...meta
-    }));
-  }
-};
+// Enhanced structured logger
+const logger = createLogger('notification-service');
 
 // Idempotency tracking (in production, use Redis or database)
 const processedMessages = new Set();
@@ -81,18 +45,13 @@ const connectRabbitMQ = async () => {
     await channel.assertQueue(QUEUE_NAME, { durable: true });
     await channel.assertQueue(DLQ_NAME, { durable: true });
     
-    logger.info('RabbitMQ connected as consumer', {
-      mainQueue: QUEUE_NAME,
-      dlq: DLQ_NAME
-    });
+    logger.queueConnected(`${QUEUE_NAME}, ${DLQ_NAME}`);
     
     // Start consuming messages
     consumeMessages();
   } catch (error) {
-    logger.error('RabbitMQ connection failed', {
-      error: error.message,
-      retryIn: '5 seconds'
-    });
+    logger.queueError(error, `${QUEUE_NAME}, ${DLQ_NAME}`);
+    logger.info('Retrying connection in 5 seconds...');
     setTimeout(connectRabbitMQ, 5000);
   }
 };
@@ -121,22 +80,12 @@ const consumeMessages = async () => {
           
           // Check idempotency
           if (processedMessages.has(messageId)) {
-            logger.warn('Duplicate message detected, skipping', {
-              messageId,
-              type: notificationData.type,
-              recipient: notificationData.recipient
-            });
+            logger.duplicateMessage(messageId, notificationData.type, notificationData.recipient);
             channel.ack(msg);
             return;
           }
           
-          logger.info('Processing notification', {
-            messageId,
-            type: notificationData.type,
-            recipient: notificationData.recipient,
-            subject: notificationData.subject || 'N/A',
-            retryCount
-          });
+          logger.messageReceived(messageId, notificationData.type, notificationData.recipient, retryCount);
           
           // Send notification based on type
           await sendNotification(notificationData);
@@ -146,10 +95,7 @@ const consumeMessages = async () => {
           
           // Acknowledge message
           channel.ack(msg);
-          logger.info('Notification sent successfully', {
-            messageId,
-            recipient: notificationData.recipient
-          });
+          logger.messageProcessed(messageId, notificationData.recipient);
         } catch (error) {
           logger.error('Notification processing failed', {
             messageId,
@@ -168,11 +114,7 @@ const consumeMessages = async () => {
               });
               channel.ack(msg);
             } else if (retryCount >= maxRetries) {
-              logger.error('Max retries reached, sending to DLQ', {
-                messageId,
-                retryCount,
-                maxRetries
-              });
+              logger.messageDLQ(messageId, error.message);
               
               // Send to Dead Letter Queue
               const dlqHeaders = {
@@ -201,12 +143,7 @@ const consumeMessages = async () => {
               }
             } else {
               const backoffDelay = calculateBackoffDelay(retryCount);
-              logger.warn('Retrying message with exponential backoff', {
-                messageId,
-                retryCount: retryCount + 1,
-                maxRetries,
-                backoffDelay: `${Math.round(backoffDelay)}ms`
-              });
+              logger.messageRetry(messageId, retryCount + 1, maxRetries, Math.round(backoffDelay));
               
               try {
                 // Republish message with updated retry count and delay
@@ -283,8 +220,11 @@ const sendNotification = async (data) => {
 // Send email function
 const sendEmail = async (recipient, subject, content, template = 'default') => {
   try {
-    console.log('📤 [EMAIL] Sending email to:', recipient);
-    console.log('📋 [EMAIL] Template:', template);
+    logger.info('Sending email', {
+      recipient,
+      subject,
+      template
+    });
     
     const transporter = createTransporter();
     
@@ -307,10 +247,10 @@ const sendEmail = async (recipient, subject, content, template = 'default') => {
     };
     
     const result = await transporter.sendMail(mailOptions);
-    console.log('✅ [EMAIL] Sent successfully to:', recipient);
+    logger.emailSent(recipient, subject, template);
     return result;
   } catch (error) {
-    console.error('❌ [EMAIL] Sending error:', error.message);
+    logger.emailFailed(recipient, error);
     throw error;
   }
 };
@@ -476,28 +416,31 @@ app.get('/api/queue/status', (req, res) => {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('🔄 [SHUTDOWN] Received SIGINT, shutting down gracefully...');
+  logger.info('Received SIGINT, shutting down gracefully...');
   if (channel) await channel.close();
   if (connection) await connection.close();
-  console.log('✅ [SHUTDOWN] Notification service stopped');
+  logger.serviceStop();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('🔄 [SHUTDOWN] Received SIGTERM, shutting down gracefully...');
+  logger.info('Received SIGTERM, shutting down gracefully...');
   if (channel) await channel.close();
   if (connection) await connection.close();
-  console.log('✅ [SHUTDOWN] Notification service stopped');
+  logger.serviceStop();
   process.exit(0);
 });
 
 // Start the service
 app.listen(PORT, () => {
-  console.log('🚀 [SERVICE] Notification service started');
-  console.log('📍 [SERVICE] Running on port:', PORT);
-  console.log('📧 [SERVICE] Email notifications enabled');
-  console.log('📨 [SERVICE] RabbitMQ consumer mode');
-  console.log('🐰 [SERVICE] Connecting to RabbitMQ as consumer...');
+  logger.serviceStart(PORT, [
+    'email-notifications',
+    'rabbitmq-consumer',
+    'enhanced-logging',
+    'idempotency',
+    'retry-mechanism',
+    'dlq-support'
+  ]);
   
   // Connect to RabbitMQ as consumer
   connectRabbitMQ();

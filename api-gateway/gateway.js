@@ -5,6 +5,7 @@ import axios from 'axios';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './swagger.js';
 import cors from 'cors';
+import { createLogger } from '../logger-service/logger.js';
 
 // Authentication is handled at the individual service level
 
@@ -12,6 +13,9 @@ dotenv.config();
 
 const app = express();
 const port = 3000;
+
+// Enhanced structured logger
+const logger = createLogger('api-gateway');
 
 app.use(express.json());
 app.use(cors());
@@ -48,7 +52,7 @@ const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007'
  *         description: Gateway error
  */
 app.get('/health', async (req, res) => {
-    console.log('🏥 [GATEWAY] Health check requested');
+    logger.info('Health check requested');
     
     const services = {
         userService: USER_SERVICE_URL,
@@ -83,6 +87,11 @@ app.get('/health', async (req, res) => {
     }
 
     const overallStatus = Object.values(healthResults).every(result => result.status === 'OK') ? 'OK' : 'DEGRADED';
+
+    logger.info('Health check completed', { 
+        overallStatus, 
+        serviceCount: Object.keys(healthResults).length 
+    });
 
     res.json({
         status: overallStatus,
@@ -127,7 +136,7 @@ app.get('/health', async (req, res) => {
  *                         type: object
  */
 app.get('/services/health', async (req, res) => {
-    console.log('🏥 [GATEWAY] Services health check requested');
+    logger.info('Services health check requested');
     
     const services = [
         { name: 'User Service', url: USER_SERVICE_URL, port: 3001 },
@@ -162,6 +171,10 @@ app.get('/services/health', async (req, res) => {
             });
         }
     }
+
+    logger.info('Services health check completed', { 
+        serviceCount: healthResults.length 
+    });
 
     res.json({
         gateway: 'OK',
@@ -260,7 +273,10 @@ app.use('/api/auth', createProxyMiddleware({
         '^/api/auth': '/api/auth'
     },
     onProxyReq: (proxyReq, req, res) => {
-        console.log('🔐 [GATEWAY] Auth service request:', req.method, req.path)
+        logger.info('Auth service request', { 
+            method: req.method, 
+            path: req.path 
+        });
         
         if (req.body && Object.keys(req.body).length > 0) {
             const bodyData = JSON.stringify(req.body);
@@ -270,7 +286,9 @@ app.use('/api/auth', createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
-        console.log('✅ [GATEWAY] Auth service response:', proxyRes.statusCode);
+        logger.info('Auth service response', { 
+            statusCode: proxyRes.statusCode 
+        });
     }
 }));
 
@@ -404,7 +422,10 @@ app.use('/users', createProxyMiddleware({
         '^/users': '/users'
     },
     onProxyReq: (proxyReq, req, res) => {
-        console.log('👤 [GATEWAY] User service request:', req.method, req.path);
+        logger.info('User service request', { 
+            method: req.method, 
+            path: req.path 
+        });
 
         if (req.body && Object.keys(req.body).length > 0) {
             const bodyData = JSON.stringify(req.body);
@@ -414,7 +435,9 @@ app.use('/users', createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
-        console.log('✅ [GATEWAY] User service response:', proxyRes.statusCode);
+        logger.info('User service response', { 
+            statusCode: proxyRes.statusCode 
+        });
     }
 }));
 
@@ -584,7 +607,10 @@ app.use('/todos', createProxyMiddleware({
         '^/todos': '/todos'
     },
     onProxyReq: (proxyReq, req, res) => {
-        console.log('✅ [GATEWAY] Todo service request:', req.method, req.path);
+        logger.info('Todo service request', { 
+            method: req.method, 
+            path: req.path 
+        });
 
         if (req.body && Object.keys(req.body).length > 0) {
             const bodyData = JSON.stringify(req.body);
@@ -594,7 +620,9 @@ app.use('/todos', createProxyMiddleware({
         }
     },
     onProxyRes: (proxyRes, req, res) => {
-        console.log('✅ [GATEWAY] Todo service response:', proxyRes.statusCode);
+        logger.info('Todo service response', { 
+            statusCode: proxyRes.statusCode 
+        });
     }
 }));
 
@@ -606,10 +634,15 @@ app.use('/api/messaging', createProxyMiddleware({
         '^/api/messaging': '/api'
     },
     onProxyReq: (proxyReq, req, res) => {
-        console.log('📨 [GATEWAY] Messaging service request:', req.method, req.path);
+        logger.info('Messaging service request', { 
+            method: req.method, 
+            path: req.path 
+        });
     },
     onProxyRes: (proxyRes, req, res) => {
-        console.log('✅ [GATEWAY] Messaging service response:', proxyRes.statusCode);
+        logger.info('Messaging service response', { 
+            statusCode: proxyRes.statusCode 
+        });
     }
 }));
 
@@ -670,7 +703,11 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('❌ [GATEWAY] Error:', err.message);
+    logger.error('Gateway error', { 
+        error: err.message,
+        path: req.path,
+        method: req.method
+    });
     res.status(500).json({
         error: 'Gateway Error',
         message: err.message,
@@ -680,6 +717,10 @@ app.use((err, req, res, next) => {
 
 // 404 handler
 app.use('*', (req, res) => {
+    logger.warn('Route not found', { 
+        path: req.originalUrl,
+        method: req.method
+    });
     res.status(404).json({
         error: 'Route Not Found',
         message: `The route ${req.originalUrl} does not exist`,
@@ -698,21 +739,21 @@ app.use('*', (req, res) => {
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-    console.log('🔌 [GATEWAY] Shutting down API Gateway...');
+    logger.info('Received SIGINT, shutting down gracefully');
     process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-    console.log('🔌 [GATEWAY] Shutting down API Gateway...');
+    logger.info('Received SIGTERM, shutting down gracefully');
     process.exit(0);
 });
 
 app.listen(port, () => {
-    console.log('🚀 [GATEWAY] API Gateway started');
-    console.log('📍 [GATEWAY] Running on port:', port);
-    console.log('🔐 [GATEWAY] Authentication service routing enabled (temporarily disabled for testing)');
-    console.log('👤 [GATEWAY] User service routing enabled');
-    console.log('✅ [GATEWAY] Todo service routing enabled');
-    console.log('📨 [GATEWAY] Messaging service routing enabled');
-    console.log('📧 [GATEWAY] Notification service routing enabled');
+    logger.serviceStart(port, [
+        'api-gateway',
+        'service-proxy',
+        'health-monitoring',
+        'swagger-documentation',
+        'enhanced-logging'
+    ]);
 });
