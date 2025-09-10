@@ -26,23 +26,52 @@ const requireTodoOwnership = async (req, res, next) => {
         const todoId = req.params.id;
         const todoRepository = AppDataSource.getRepository(Todo);
         
-        const todo = await todoRepository.findOne({
-            where: { id: todoId }
+        logger.info('Todo ownership check', { 
+            todoId, 
+            userId: req.user?.userId,
+            userRole: req.user?.role 
+        });
+        
+        // Find the todo by ID using MongoDB _id field (the working approach)
+        let todo;
+        try {
+            const { ObjectId } = await import('mongodb');
+            todo = await todoRepository.findOne({
+                where: { _id: new ObjectId(todoId) }
+            });
+        } catch (error) {
+            logger.error('Error querying todo by ID', { todoId, error: error.message });
+            todo = null;
+        }
+        
+        
+        logger.info('Todo lookup result', { 
+            todoId, 
+            found: !!todo,
+            todoUserId: todo?.userId,
+            requestingUserId: req.user?.userId
         });
         
         if (!todo) {
+            logger.warn('Todo not found in ownership check', { todoId });
             return res.status(404).json({ error: 'Todo not found' });
         }
         
         // Check if user owns the todo or is admin
         if (req.user.role === 'admin' || todo.userId === req.user.userId) {
             req.todo = todo; // Attach todo to request for use in route handler
+            logger.info('Todo ownership verified', { todoId, userId: req.user.userId });
             next();
         } else {
+            logger.warn('Todo access denied', { 
+                todoId, 
+                todoUserId: todo.userId, 
+                requestingUserId: req.user.userId 
+            });
             return res.status(403).json({ error: 'Access denied. You can only access your own todos.' });
         }
     } catch (error) {
-        logger.error('Todo ownership check error', { error: error.message });
+        logger.error('Todo ownership check error', { error: error.message, todoId: req.params.id });
         return res.status(500).json({ error: 'Internal server error' });
     }
 };
@@ -340,8 +369,11 @@ app.get('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
+        
+        // Use the same _id query approach that works in requireTodoOwnership
+        const { ObjectId } = await import('mongodb');
         const todo = await todoRepository.findOne({
-            where: { id: todoId }
+            where: { _id: new ObjectId(todoId) }
         });
         
         if (!todo) {
@@ -416,7 +448,12 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         }
         
         const todoRepository = AppDataSource.getRepository(Todo);
-        const todo = await todoRepository.findOne({ where: { id: todoId } });
+        
+        // Use the same _id query approach that works in requireTodoOwnership
+        const { ObjectId } = await import('mongodb');
+        const todo = await todoRepository.findOne({ 
+            where: { _id: new ObjectId(todoId) } 
+        });
         
         if (!todo) {
             logger.warn('Todo not found for update', { todoId });
@@ -502,7 +539,12 @@ app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, re
     
     try {
         const todoRepository = AppDataSource.getRepository(Todo);
-        const todo = await todoRepository.findOne({ where: { id: todoId } });
+        
+        // Use the same _id query approach that works in requireTodoOwnership
+        const { ObjectId } = await import('mongodb');
+        const todo = await todoRepository.findOne({ 
+            where: { _id: new ObjectId(todoId) } 
+        });
         
         if (!todo) {
             logger.warn('Todo not found for deletion', { todoId });

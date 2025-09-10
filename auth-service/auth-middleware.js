@@ -26,7 +26,7 @@ export const authenticateToken = async (req, res, next) => {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             req.user = decoded;
-            console.log('✅ [AUTH] Token verified locally for user:', decoded.email);
+            console.log('✅ [AUTH] Token verified locally for user:', decoded.email, 'userId:', decoded.userId, 'role:', decoded.role);
             return next();
         } catch (jwtError) {
             console.log('⚠️  [AUTH] Local token verification failed, checking with auth service');
@@ -40,7 +40,7 @@ export const authenticateToken = async (req, res, next) => {
             
             if (response.data.valid) {
                 req.user = response.data.user;
-                console.log('✅ [AUTH] Token verified with auth service for user:', req.user.email);
+                console.log('✅ [AUTH] Token verified with auth service for user:', req.user.email, 'userId:', req.user.userId, 'role:', req.user.role);
                 next();
             } else {
                 throw new Error('Token invalid');

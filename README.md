@@ -6,17 +6,24 @@ A comprehensive microservices architecture demonstrating modern backend developm
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   API Gateway   │    │  Auth Service   │    │  User Service   │
-│   (Port 3000)   │◄──►│   (Port 3007)   │◄──►│   (Port 3001)   │
+│   React App     │    │   API Gateway   │    │  Auth Service   │
+│   (Port 5173)   │◄──►│   (Port 3000)   │◄──►│   (Port 3007)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
+                                │                       │
+                                │                       │
+                                ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Todo Service   │    │ Messaging       │    │ Notification    │
-│  (Port 3002)    │◄──►│ Service         │◄──►│ Service         │
-└─────────────────┘    │ (Port 3006)     │    │ (Port 3003)     │
-                       └─────────────────┘    └─────────────────┘
+│  User Service   │    │  Todo Service   │    │ Messaging       │
+│   (Port 3001)   │◄──►│  (Port 3002)    │◄──►│ Service         │
+└─────────────────┘    └─────────────────┘    │ (Port 3006)     │
+                                              └─────────────────┘
+                                                       │
+                                                       ▼
+                                              ┌─────────────────┐
+                                              │ Notification    │
+                                              │ Service         │
+                                              │ (Port 3003)     │
+                                              └─────────────────┘
 ```
 
 ## 🔐 **NEW: Authentication & Authorization System**
@@ -38,6 +45,17 @@ The authentication system acts as the **bouncer** for your microservices archite
 4. **Ownership-based**: Users can only access their own data
 
 ## 🚀 Services
+
+### **0. React Frontend** (`frontend/`) ⭐ **NEW**
+- **Port**: 5173 (development)
+- **Purpose**: Modern React-based user interface
+- **Features**:
+  - Redux Toolkit for state management
+  - React Router for navigation
+  - Modular components for each domain
+  - JWT authentication integration
+  - Real-time updates and optimistic UI
+  - Responsive design with modern UX
 
 ### **1. API Gateway** (`api-gateway/`)
 - **Port**: 3000
@@ -136,17 +154,17 @@ GET    /api/todos/pending  # Get pending todos
 
 ### **1. Install Dependencies**
 ```bash
-# Install root dependencies
-npm install
+# Install frontend dependencies
+cd frontend && npm install && cd ..
 
 # Install service dependencies
-cd auth-service && npm install
-cd ../user-service && npm install
-cd ../todo-service && npm install
-cd ../messaging-service && npm install
-cd ../notification-service && npm install
-cd ../logger-service && npm install
-cd ../api-gateway && npm install
+cd auth-service && npm install && cd ..
+cd user-service && npm install && cd ..
+cd todo-service && npm install && cd ..
+cd messaging-service && npm install && cd ..
+cd notification-service && npm install && cd ..
+cd logger-service && npm install && cd ..
+cd api-gateway && npm install && cd ..
 ```
 
 ### **2. Environment Setup**
@@ -164,30 +182,38 @@ MESSAGING_SERVICE_URL=http://localhost:3006
 
 ### **3. Start Services**
 ```bash
-# Terminal 1: Start API Gateway
+# Terminal 1: Start React Frontend
+cd frontend && npm run dev
+
+# Terminal 2: Start API Gateway
 cd api-gateway && npm start
 
-# Terminal 2: Start Authentication Service
+# Terminal 3: Start Authentication Service
 cd auth-service && npm start
 
-# Terminal 3: Start User Service
+# Terminal 4: Start User Service
 cd user-service && npm start
 
-# Terminal 4: Start Todo Service
+# Terminal 5: Start Todo Service
 cd todo-service && npm start
 
-# Terminal 5: Start Messaging Service
+# Terminal 6: Start Messaging Service
 cd messaging-service && npm start
 
-# Terminal 6: Start Notification Service
+# Terminal 7: Start Notification Service
 cd notification-service && npm start
 
-# Terminal 7: Start Logger Service (if running standalone)
+# Terminal 8: Start Logger Service (if running standalone)
 cd logger-service && npm start
 ```
 
-### **4. Test Authentication**
+### **4. Access the Application**
 ```bash
+# Open your browser and navigate to:
+# Frontend: http://localhost:5173
+# API Gateway: http://localhost:3000
+
+# Or test via API:
 # 1. Register a new user
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
@@ -271,6 +297,7 @@ curl http://localhost:3000/services/health
 ```
 
 ### **Service Status**
+- 🌐 React Frontend: `http://localhost:5173`
 - ✅ API Gateway: `http://localhost:3000`
 - 🔐 Auth Service: `http://localhost:3007`
 - 👤 User Service: `http://localhost:3001`
@@ -281,17 +308,18 @@ curl http://localhost:3000/services/health
 
 ## 📚 **Documentation**
 
-- **[Microservices Overview](./MICROSERVICES_OVERVIEW.md)** - Complete architecture overview
-- **[API Gateway](./API_GATEWAY.md)** - Gateway service documentation
-- **[Authentication Service](./AUTH_SERVICE.md)** - Auth service documentation
-- **[User Service](./USER_SERVICE.md)** - User service documentation
-- **[Todo Service](./TODO_SERVICE.md)** - Todo service documentation
-- **[Messaging Service](./MESSAGING_SERVICE.md)** - Messaging service documentation
-- **[Notification Service](./NOTIFICATION_SERVICE.md)** - Notification service documentation
-- **[Logger Service](./LOGGER_SERVICE.md)** - Logger service documentation
-- **[Authentication Architecture](./AUTHENTICATION_ARCHITECTURE.md)** - Complete auth system guide
-- **[Messaging Architecture](./MESSAGING_ARCHITECTURE.md)** - RabbitMQ integration details
-- **[Database Setup](./DATABASE_SETUP.md)** - Database configuration guide
+- **[Frontend README](./frontend/README.md)** - React frontend documentation
+- **[Microservices Overview](./docs/MICROSERVICES_OVERVIEW.md)** - Complete architecture overview
+- **[API Gateway](./docs/API_GATEWAY.md)** - Gateway service documentation
+- **[Authentication Service](./docs/AUTH_SERVICE.md)** - Auth service documentation
+- **[User Service](./docs/USER_SERVICE.md)** - User service documentation
+- **[Todo Service](./docs/TODO_SERVICE.md)** - Todo service documentation
+- **[Messaging Service](./docs/MESSAGING_SERVICE.md)** - Messaging service documentation
+- **[Notification Service](./docs/NOTIFICATION_SERVICE.md)** - Notification service documentation
+- **[Logger Service](./docs/LOGGER_SERVICE.md)** - Logger service documentation
+- **[Authentication Architecture](./docs/AUTHENTICATION_ARCHITECTURE.md)** - Complete auth system guide
+- **[Messaging Architecture](./docs/MESSAGING_ARCHITECTURE.md)** - RabbitMQ integration details
+- **[Database Setup](./docs/DATABASE_SETUP.md)** - Database configuration guide
 
 ## 🏗️ **Architecture Benefits**
 
@@ -341,4 +369,32 @@ curl http://localhost:3000/services/health
 
 ---
 
-**🎯 This POC demonstrates a production-ready microservices architecture with enterprise-grade authentication, secure messaging, and comprehensive monitoring!**
+**🎯 This POC demonstrates a production-ready microservices architecture with enterprise-grade authentication, secure messaging, comprehensive monitoring, and a modern React frontend!**
+
+## 🌟 **Frontend Features**
+
+### **Modern React Architecture**
+- **Vite** for fast development and optimized builds
+- **Redux Toolkit** for predictable state management
+- **React Router** for client-side navigation
+- **Axios** with interceptors for API communication
+
+### **User Experience**
+- **Responsive Design** - Works on desktop, tablet, and mobile
+- **Real-time Updates** - Optimistic UI updates for better UX
+- **Loading States** - Proper loading indicators throughout
+- **Error Handling** - User-friendly error messages and retry options
+- **Authentication Flow** - Seamless login/logout experience
+
+### **Domain-Specific Components**
+- **User Management** - View, create, edit, and delete users
+- **Todo Management** - Personal task management with filtering
+- **Notifications** - Real-time notification system
+- **Dashboard** - Overview of all user data and activities
+
+### **Developer Experience**
+- **Modular Architecture** - Clean separation of concerns
+- **Custom Hooks** - Reusable API integration patterns
+- **TypeScript Ready** - Easy to migrate to TypeScript
+- **Hot Reload** - Fast development with Vite
+- **ESLint** - Code quality and consistency
