@@ -24,9 +24,39 @@ A comprehensive microservices architecture demonstrating modern backend developm
                                               │ Service         │
                                               │ (Port 3003)     │
                                               └─────────────────┘
+                                                       │
+                                                       ▼
+                                              ┌─────────────────┐
+                                              │   AI Service    │
+                                              │ (Port 3008)     │
+                                              └─────────────────┘
+                                                       │
+                                                       ▼
+                                              ┌─────────────────┐
+                                              │   MCP Server    │
+                                              │ (Port 3009)     │
+                                              └─────────────────┘
 ```
 
-## 🔐 **NEW: Authentication & Authorization System**
+## 🤖 **NEW: AI Integration & MCP Server**
+
+The POC now includes **AI-powered features** and a **Model Context Protocol (MCP) server** that enables AI models to directly interact with your microservices architecture.
+
+### **AI Service Features:**
+- **Task Breakdown**: Break large tasks into smaller, manageable todos
+- **Todo Analysis**: AI-powered analysis of user productivity patterns
+- **User Insights**: Personalized productivity insights and recommendations
+- **Smart Suggestions**: AI-generated todo suggestions based on user behavior
+- **Rate Limiting**: Built-in protection against API overuse (40 requests/day per user)
+
+### **MCP Server Features:**
+- **18 MCP Tools**: Direct AI access to all microservices functionality
+- **Token Authentication**: Secure token-based authentication system
+- **Real-time Data Access**: AI models can access live data from your services
+- **Comprehensive Error Handling**: Robust error handling and validation
+- **Testing Interface**: HTTP wrapper for easy testing and development
+
+## 🔐 **Authentication & Authorization System**
 
 The authentication system acts as the **bouncer** for your microservices architecture, ensuring only authenticated and authorized users can access protected resources.
 
@@ -114,7 +144,27 @@ The authentication system acts as the **bouncer** for your microservices archite
   - Nodemailer integration
   - Health monitoring
 
-### **7. Logger Service** (`logger-service/`) ⭐ **NEW**
+### **7. AI Service** (`ai-service/`) ⭐ **NEW**
+- **Port**: 3008
+- **Purpose**: AI-powered features using Google Gemini
+- **Features**:
+  - Task breakdown into smaller todos
+  - Todo analysis and insights
+  - User productivity insights
+  - Todo suggestions
+  - Rate limiting (40 requests/day per user)
+
+### **8. MCP Server** (`mcp-service/`) ⭐ **NEW**
+- **Port**: 3009
+- **Purpose**: Model Context Protocol server for AI model integration
+- **Features**:
+  - 18 MCP tools for AI models to interact with microservices
+  - Direct access to todo, user, and analytics data
+  - Token-based authentication system
+  - HTTP wrapper for testing and development
+  - Comprehensive error handling and validation
+
+### **9. Logger Service** (`logger-service/`) ⭐ **NEW**
 - **Port**: Shared (imported by all services)
 - **Purpose**: Centralized structured logging
 - **Features**:
@@ -163,6 +213,8 @@ cd user-service && npm install && cd ..
 cd todo-service && npm install && cd ..
 cd messaging-service && npm install && cd ..
 cd notification-service && npm install && cd ..
+cd ai-service && npm install && cd ..
+cd mcp-service && npm install && cd ..
 cd logger-service && npm install && cd ..
 cd api-gateway && npm install && cd ..
 ```
@@ -203,7 +255,13 @@ cd messaging-service && npm start
 # Terminal 7: Start Notification Service
 cd notification-service && npm start
 
-# Terminal 8: Start Logger Service (if running standalone)
+# Terminal 8: Start AI Service
+cd ai-service && npm start
+
+# Terminal 9: Start MCP Server
+cd mcp-service && npm start
+
+# Terminal 10: Start Logger Service (if running standalone)
 cd logger-service && npm start
 ```
 
@@ -284,6 +342,34 @@ curl -X PUT http://localhost:3000/api/todos/<TODO_ID> \
   }'
 ```
 
+## 🤖 **AI & MCP Examples**
+
+### **AI Task Breakdown**
+```bash
+curl -X POST http://localhost:3000/api/ai/todos/breakdown \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "taskDescription": "Build a full-stack web application"
+  }'
+```
+
+### **AI Todo Analysis**
+```bash
+curl -X POST http://localhost:3000/api/ai/todos/analyze \
+  -H "Authorization: Bearer <JWT_TOKEN>"
+```
+
+### **MCP Server Health Check**
+```bash
+curl http://localhost:3009/health
+```
+
+### **MCP Server Info**
+```bash
+curl http://localhost:3009/info
+```
+
 ## 🔍 **Monitoring & Health**
 
 ### **Gateway Health Check**
@@ -304,6 +390,8 @@ curl http://localhost:3000/services/health
 - ✅ Todo Service: `http://localhost:3002`
 - 📨 Messaging Service: `http://localhost:3006`
 - 📧 Notification Service: `http://localhost:3003`
+- 🤖 AI Service: `http://localhost:3008`
+- 🔗 MCP Server: `http://localhost:3009`
 - 📝 Logger Service: Shared (imported by all services)
 
 ## 📚 **Documentation**
@@ -316,6 +404,8 @@ curl http://localhost:3000/services/health
 - **[Todo Service](./docs/TODO_SERVICE.md)** - Todo service documentation
 - **[Messaging Service](./docs/MESSAGING_SERVICE.md)** - Messaging service documentation
 - **[Notification Service](./docs/NOTIFICATION_SERVICE.md)** - Notification service documentation
+- **[AI Service](./docs/AI_SERVICE.md)** - AI service documentation
+- **[MCP Service](./docs/MCP_SERVICE.md)** - MCP server documentation
 - **[Logger Service](./docs/LOGGER_SERVICE.md)** - Logger service documentation
 - **[Authentication Architecture](./docs/AUTHENTICATION_ARCHITECTURE.md)** - Complete auth system guide
 - **[Messaging Architecture](./docs/MESSAGING_ARCHITECTURE.md)** - RabbitMQ integration details
@@ -369,7 +459,7 @@ curl http://localhost:3000/services/health
 
 ---
 
-**🎯 This POC demonstrates a production-ready microservices architecture with enterprise-grade authentication, secure messaging, comprehensive monitoring, and a modern React frontend!**
+**🎯 This POC demonstrates a production-ready microservices architecture with enterprise-grade authentication, secure messaging, AI-powered features, MCP server integration, comprehensive monitoring, and a modern React frontend!**
 
 ## 🌟 **Frontend Features**
 
