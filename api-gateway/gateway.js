@@ -33,6 +33,7 @@ const TODO_SERVICE_URL = process.env.TODO_SERVICE_URL || 'http://localhost:3002'
 const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
 const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:3008';
 
 /**
  * @swagger
@@ -59,7 +60,8 @@ app.get('/health', async (req, res) => {
         todoService: TODO_SERVICE_URL,
         notificationService: NOTIFICATION_SERVICE_URL,
         messagingService: MESSAGING_SERVICE_URL,
-        authService: AUTH_SERVICE_URL
+        authService: AUTH_SERVICE_URL,
+        aiService: AI_SERVICE_URL
     };
 
     const healthResults = {};
@@ -68,7 +70,7 @@ app.get('/health', async (req, res) => {
         try {
             // Different services have different health endpoint paths
             let healthEndpoint = '/health';
-            if (serviceName === 'notificationService' || serviceName === 'messagingService' || serviceName === 'authService') {
+            if (serviceName === 'notificationService' || serviceName === 'messagingService' || serviceName === 'authService' || serviceName === 'aiService') {
                 healthEndpoint = '/api/health';
             }
             const response = await axios.get(`${serviceUrl}${healthEndpoint}`, { timeout: 5000 });
@@ -143,7 +145,8 @@ app.get('/services/health', async (req, res) => {
         { name: 'Todo Service', url: TODO_SERVICE_URL, port: 3002 },
         { name: 'Notification Service', url: NOTIFICATION_SERVICE_URL, port: 3003 },
         { name: 'Messaging Service', url: MESSAGING_SERVICE_URL, port: 3006 },
-        { name: 'Auth Service', url: AUTH_SERVICE_URL, port: 3007 }
+        { name: 'Auth Service', url: AUTH_SERVICE_URL, port: 3007 },
+        { name: 'AI Service', url: AI_SERVICE_URL, port: 3008 }
     ];
 
     const healthResults = [];
@@ -152,7 +155,7 @@ app.get('/services/health', async (req, res) => {
         try {
             // Different services have different health endpoint paths
             let healthEndpoint = '/health';
-            if (service.name === 'Notification Service' || service.name === 'Messaging Service' || service.name === 'Auth Service') {
+            if (service.name === 'Notification Service' || service.name === 'Messaging Service' || service.name === 'Auth Service' || service.name === 'AI Service') {
                 healthEndpoint = '/api/health';
             }
             const response = await axios.get(`${service.url}${healthEndpoint}`, { timeout: 5000 });
@@ -648,6 +651,346 @@ app.use('/api/messaging', createProxyMiddleware({
 
 /**
  * @swagger
+ * /api/ai/generate:
+ *   post:
+ *     summary: Generate text using AI
+ *     description: Generate text content using Gemini AI
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               prompt:
+ *                 type: string
+ *                 description: The text prompt for generation
+ *               maxTokens:
+ *                 type: integer
+ *                 description: Maximum tokens to generate
+ *                 default: 1000
+ *               temperature:
+ *                 type: number
+ *                 description: Temperature for generation (0-1)
+ *                 default: 0.7
+ *     responses:
+ *       200:
+ *         description: Text generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 generatedText:
+ *                   type: string
+ *                 metadata:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid input
+ * /api/ai/chat:
+ *   post:
+ *     summary: Chat with AI
+ *     description: Have a conversation with Gemini AI
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 description: The message to send to AI
+ *               history:
+ *                 type: array
+ *                 description: Previous conversation history
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     role:
+ *                       type: string
+ *                     content:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Chat response received
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 reply:
+ *                   type: string
+ *                 metadata:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid input
+ * /api/ai/code:
+ *   post:
+ *     summary: Generate code using AI
+ *     description: Generate code in specified language using Gemini AI
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               description:
+ *                 type: string
+ *                 description: Description of the code to generate
+ *               language:
+ *                 type: string
+ *                 description: Programming language
+ *                 default: javascript
+ *               includeComments:
+ *                 type: boolean
+ *                 description: Whether to include comments
+ *                 default: true
+ *     responses:
+ *       200:
+ *         description: Code generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 code:
+ *                   type: string
+ *                 language:
+ *                   type: string
+ *                 metadata:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid input
+ * /api/ai/analyze:
+ *   post:
+ *     summary: Analyze text using AI
+ *     description: Analyze text for sentiment, summary, or keywords
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               text:
+ *                 type: string
+ *                 description: Text to analyze
+ *               analysisType:
+ *                 type: string
+ *                 enum: [sentiment, summary, keywords]
+ *                 description: Type of analysis to perform
+ *                 default: sentiment
+ *     responses:
+ *       200:
+ *         description: Analysis completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 analysis:
+ *                   type: string
+ *                 analysisType:
+ *                   type: string
+ *                 metadata:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid input
+ * /api/ai/todos/analyze:
+ *   post:
+ *     summary: Analyze user's todos with AI insights
+ *     description: Get AI-powered analysis of user's todo list with productivity insights
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Todo analysis completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 analysis:
+ *                   type: string
+ *                 todoCount:
+ *                   type: integer
+ *                 completedCount:
+ *                   type: integer
+ *                 pendingCount:
+ *                   type: integer
+ *       401:
+ *         description: Unauthorized
+ * /api/ai/todos/suggest:
+ *   post:
+ *     summary: Get AI-powered todo suggestions
+ *     description: Get personalized todo suggestions based on user context and existing todos
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               context:
+ *                 type: string
+ *                 description: Context for suggestions
+ *               category:
+ *                 type: string
+ *                 description: Category of suggestions
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *                 default: medium
+ *     responses:
+ *       200:
+ *         description: Todo suggestions generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 suggestions:
+ *                   type: string
+ *                 context:
+ *                   type: string
+ *                 category:
+ *                   type: string
+ *                 priority:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid input
+ * /api/ai/user/insights:
+ *   post:
+ *     summary: Get personalized user insights
+ *     description: Get AI-powered insights about user's productivity and recommendations
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User insights generated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 insights:
+ *                   type: string
+ *                 userProfile:
+ *                   type: object
+ *                 todoStats:
+ *                   type: object
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ * /api/ai/todos/breakdown:
+ *   post:
+ *     summary: Break down a big task into smaller todos
+ *     description: AI-powered breakdown of big tasks into smaller, manageable todos with names and descriptions
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               taskDescription:
+ *                 type: string
+ *                 description: Description of the big task to break down
+ *     responses:
+ *       200:
+ *         description: Task breakdown successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 breakdown:
+ *                   type: string
+ *                 originalTask:
+ *                   type: string
+ *       401:
+ *         description: Unauthorized
+ *       400:
+ *         description: Invalid input
+ */
+// AI service routes (protected)
+app.use('/api/ai', createProxyMiddleware({
+    target: AI_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/ai': '/api/ai'
+    },
+    onProxyReq: (proxyReq, req, res) => {
+        logger.info('AI service request', { 
+            method: req.method, 
+            path: req.path 
+        });
+
+        if (req.body && Object.keys(req.body).length > 0) {
+            const bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+        }
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        logger.info('AI service response', { 
+            statusCode: proxyRes.statusCode 
+        });
+    }
+}));
+
+/**
+ * @swagger
  * /:
  *   get:
  *     summary: API Gateway information
@@ -694,7 +1037,8 @@ app.get('/', (req, res) => {
             users: `${USER_SERVICE_URL}/users`,
             todos: `${TODO_SERVICE_URL}/todos`,
             notifications: `${NOTIFICATION_SERVICE_URL}/notifications`,
-            messaging: `${MESSAGING_SERVICE_URL}/api`
+            messaging: `${MESSAGING_SERVICE_URL}/api`,
+            ai: `${AI_SERVICE_URL}/api/ai`
         },
         documentation: '/api-docs',
         timestamp: new Date().toISOString()
@@ -729,6 +1073,7 @@ app.use('*', (req, res) => {
             '/users/*',
             '/todos/*',
             '/api/messaging/*',
+            '/api/ai/*',
             '/health',
             '/services/health',
             '/api-docs'

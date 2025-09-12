@@ -9,6 +9,7 @@ const Sidebar = () => {
     { name: 'Dashboard', href: '/', icon: '📊' },
     { name: 'Todos', href: '/todos', icon: '✅' },
     { name: 'Users', href: '/users', icon: '👥' },
+    { name: 'AI Assistant', href: '/ai', icon: '🤖' },
     { name: 'Health', href: '/health', icon: '🏥' },
   ];
 

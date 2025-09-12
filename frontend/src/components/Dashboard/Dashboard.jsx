@@ -3,6 +3,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchTodos } from '../../store/slices/todosSlice';
 import { fetchUsers } from '../../store/slices/usersSlice';
 import { healthAPI } from '../../services/api';
+import TodoAnalysis from '../AI/TodoAnalysis';
+import UserInsights from '../AI/UserInsights';
+import TaskBreakdown from '../AI/TaskBreakdown';
 
 const Dashboard = () => {
   const dispatch = useDispatch();
@@ -182,8 +185,24 @@ const Dashboard = () => {
             <h4 className="font-medium text-gray-900">System Health</h4>
             <p className="text-sm text-gray-600">Monitor service status</p>
           </button>
+          
+          <button
+            onClick={() => window.location.href = '/ai'}
+            className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left"
+          >
+            <div className="text-2xl mb-2">🤖</div>
+            <h4 className="font-medium text-gray-900">AI Assistant</h4>
+            <p className="text-sm text-gray-600">Get AI-powered insights and suggestions</p>
+          </button>
         </div>
       </div>
+
+      {/* AI Insights Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <TodoAnalysis />
+          <UserInsights />
+          <TaskBreakdown />
+        </div>
     </div>
   );
 };

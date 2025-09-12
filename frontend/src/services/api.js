@@ -4,6 +4,7 @@ import axios from 'axios';
 const API_BASE_URL = 'http://localhost:3000';
 
 // Create axios instance with default config
+//add cors headers
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -122,6 +123,71 @@ export const todosAPI = {
   
   getPending: async () => {
     const response = await api.get('/todos/pending');
+    return response.data;
+  }
+};
+
+// AI API
+export const aiAPI = {
+  // Core AI features
+  generateText: async (prompt, maxTokens = 1000, temperature = 0.7) => {
+    const response = await api.post('/api/ai/generate', {
+      prompt,
+      maxTokens,
+      temperature
+    });
+    return response.data;
+  },
+  
+  chat: async (message, history = []) => {
+    const response = await api.post('/api/ai/chat', {
+      message,
+      history
+    });
+    return response.data;
+  },
+  
+  generateCode: async (description, language = 'javascript', includeComments = true) => {
+    const response = await api.post('/api/ai/code', {
+      description,
+      language,
+      includeComments
+    });
+    return response.data;
+  },
+  
+  analyzeText: async (text, analysisType = 'sentiment') => {
+    const response = await api.post('/api/ai/analyze', {
+      text,
+      analysisType
+    });
+    return response.data;
+  },
+  
+  // User & Todo Service Integration
+  analyzeTodos: async () => {
+    const response = await api.post('/api/ai/todos/analyze');
+    return response.data;
+  },
+  
+  getTodoSuggestions: async (context, category, priority = 'medium') => {
+    const response = await api.post('/api/ai/todos/suggest', {
+      context,
+      category,
+      priority
+    });
+    return response.data;
+  },
+  
+  getUserInsights: async () => {
+    const response = await api.post('/api/ai/user/insights');
+    return response.data;
+  },
+  
+  breakdownTask: async (taskDescription) => {
+    const response = await api.post('/api/ai/todos/breakdown', {
+      taskDescription
+    });
     return response.data;
   }
 };

@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import TodoList from './components/Todos/TodoList';
 import UserList from './components/Users/UserList';
 import HealthDashboard from './components/Health/HealthDashboard';
+import AIDashboard from './components/AI/AIDashboard';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App() {
@@ -50,6 +51,14 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <HealthDashboard />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/ai" element={
+              <ProtectedRoute>
+                <Layout>
+                  <AIDashboard />
                 </Layout>
               </ProtectedRoute>
             } />
