@@ -6,7 +6,12 @@
     "start": "node mcp-server.js",
     "dev": "node mcp-server.js",
     "http": "node http-server.js",
-    "test": "node test-mcp.js"
+    "test": "node test-mcp.js",
+    "test:unit": "node test/unit-test.js",
+    "test:e2e": "node test/e2e-test.js",
+    "test:all": "node test/run-tests.js all",
+    "test:run": "node test/run-tests.js",
+    "test:demo": "node demo-tests.js"
   },
   "keywords": ["mcp", "microservices", "ai", "todo", "user-management"],
   "author": "",

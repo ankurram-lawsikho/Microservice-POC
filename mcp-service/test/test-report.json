@@ -1,0 +1,117 @@
+{
+  "timestamp": "2025-09-12T13:59:59.224Z",
+  "summary": {
+    "total": 20,
+    "passed": 2,
+    "failed": 18,
+    "errors": 0,
+    "successRate": 10
+  },
+  "results": [
+    {
+      "name": "Set Auth Token",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get Auth Token",
+      "status": "FAILED",
+      "error": "Token mismatch"
+    },
+    {
+      "name": "Create Todo",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get User Todos",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get User Profile",
+      "status": "PASSED",
+      "result": {
+        "success": true,
+        "note": "User profile test (may fail if user not found)"
+      }
+    },
+    {
+      "name": "Get All Users",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Breakdown Task",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Analyze Todos with AI",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get User Insights",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get Todo Suggestions",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get AI Rate Limit Status",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Analyze User Productivity",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get Todo Statistics",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Suggest Productivity Improvements",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "Get Service Health",
+      "status": "FAILED",
+      "error": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot POST /test</pre>\n</body>\n</html>\n"
+    },
+    {
+      "name": "MCP Server Health Check",
+      "status": "PASSED",
+      "result": {
+        "success": true
+      }
+    },
+    {
+      "name": "Get Todos Resource",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Get Users Resource",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Get Analytics Resource",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Get System Health Resource",
+      "status": "FAILED",
+      "error": "Request failed with status code 404"
+    }
+  ]
+}

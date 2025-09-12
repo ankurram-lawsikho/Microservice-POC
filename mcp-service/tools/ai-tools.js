@@ -19,7 +19,7 @@ class AITools {
         taskDescription
       }, {
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': authToken,
           'Content-Type': 'application/json'
         }
       });
@@ -47,7 +47,7 @@ class AITools {
       
       const response = await axios.post(`${this.aiServiceUrl}/api/ai/todos/analyze`, {}, {
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': authToken,
           'Content-Type': 'application/json'
         }
       });
@@ -75,7 +75,7 @@ class AITools {
       
       const response = await axios.post(`${this.aiServiceUrl}/api/ai/user/insights`, {}, {
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': authToken,
           'Content-Type': 'application/json'
         }
       });
@@ -103,7 +103,7 @@ class AITools {
       
       const response = await axios.post(`${this.aiServiceUrl}/api/ai/todos/suggest`, {}, {
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': authToken,
           'Content-Type': 'application/json'
         }
       });
@@ -131,7 +131,7 @@ class AITools {
       
       const response = await axios.get(`${this.aiServiceUrl}/api/ai/status`, {
         headers: {
-          'Authorization': `Bearer ${authToken}`
+          'Authorization': authToken
         }
       });
       
@@ -289,7 +289,11 @@ class AITools {
     if (!this.userTokens) {
       this.userTokens = new Map();
     }
-    return this.userTokens.get(userId);
+    const token = this.userTokens.get(userId);
+    if (token && !token.startsWith('Bearer ')) {
+      return `Bearer ${token}`;
+    }
+    return token;
   }
 
   // Helper method to create todos from AI breakdown

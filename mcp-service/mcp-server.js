@@ -52,6 +52,7 @@ class MicroservicesMCPServer {
     
     // Pass token storage to all tools
     this.todoTools.userTokens = this.userTokens;
+    this.userTools.userTokens = this.userTokens;
     this.aiTools.userTokens = this.userTokens;
 
     this.setupHandlers();
@@ -157,7 +158,10 @@ class MicroservicesMCPServer {
           description: "Get all users in the system",
           inputSchema: {
             type: "object",
-            properties: {}
+            properties: {
+              userId: { type: "number", description: "User ID for authentication" }
+            },
+            required: ["userId"]
           }
         },
 

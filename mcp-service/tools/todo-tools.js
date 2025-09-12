@@ -9,7 +9,11 @@ class TodoTools {
 
   // Helper method to get auth token for a user
   getAuthToken(userId) {
-    return this.userTokens.get(userId);
+    const token = this.userTokens.get(userId);
+    if (token && !token.startsWith('Bearer ')) {
+      return `Bearer ${token}`;
+    }
+    return token;
   }
 
   // Helper method to create demo token
