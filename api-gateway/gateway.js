@@ -34,6 +34,7 @@ const NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http:/
 const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007';
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:3008';
+const MCP_SERVICE_URL = process.env.MCP_SERVICE_URL || 'http://localhost:3009';
 
 /**
  * @swagger
@@ -61,7 +62,8 @@ app.get('/health', async (req, res) => {
         notificationService: NOTIFICATION_SERVICE_URL,
         messagingService: MESSAGING_SERVICE_URL,
         authService: AUTH_SERVICE_URL,
-        aiService: AI_SERVICE_URL
+        aiService: AI_SERVICE_URL,
+        mcpService: MCP_SERVICE_URL
     };
 
     const healthResults = {};
@@ -146,7 +148,8 @@ app.get('/services/health', async (req, res) => {
         { name: 'Notification Service', url: NOTIFICATION_SERVICE_URL, port: 3003 },
         { name: 'Messaging Service', url: MESSAGING_SERVICE_URL, port: 3006 },
         { name: 'Auth Service', url: AUTH_SERVICE_URL, port: 3007 },
-        { name: 'AI Service', url: AI_SERVICE_URL, port: 3008 }
+        { name: 'AI Service', url: AI_SERVICE_URL, port: 3008 },
+        { name: 'MCP Service', url: MCP_SERVICE_URL, port: 3009 }
     ];
 
     const healthResults = [];

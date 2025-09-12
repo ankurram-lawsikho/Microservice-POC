@@ -1,0 +1,22 @@
+{
+  "name": "mcp-service",
+  "version": "1.0.0",
+  "main": "mcp-server.js",
+  "scripts": {
+    "start": "node mcp-server.js",
+    "dev": "node mcp-server.js",
+    "http": "node http-server.js",
+    "test": "node test-mcp.js"
+  },
+  "keywords": ["mcp", "microservices", "ai", "todo", "user-management"],
+  "author": "",
+  "license": "ISC",
+  "description": "MCP Server for Microservices Architecture - Provides AI models with direct access to todo and user management services",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "axios": "^1.12.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0"
+  }
+}
