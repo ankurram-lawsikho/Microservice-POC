@@ -164,7 +164,20 @@ The authentication system acts as the **bouncer** for your microservices archite
   - HTTP wrapper for testing and development
   - Comprehensive error handling and validation
 
-### **9. Logger Service** (`logger-service/`) ⭐ **NEW**
+### **9. Vector Service** (`vector-service/`) ⭐ **NEW**
+- **Port**: 3010
+- **Purpose**: Semantic search and vector embeddings using pgvector
+- **Features**:
+  - Semantic todo search using natural language
+  - AI content embedding and search
+  - Contextual suggestions based on user behavior
+  - PostgreSQL with pgvector extension (Docker)
+  - Google Gemini embedding generation
+  - Smart search across todos and AI-generated content
+  - Comprehensive health monitoring and diagnostics
+- **Setup**: Uses Docker PostgreSQL with pgvector (port 5433) - see `vector-service/SETUP.md`
+
+### **10. Logger Service** (`logger-service/`) ⭐ **NEW**
 - **Port**: Shared (imported by all services)
 - **Purpose**: Centralized structured logging
 - **Features**:
@@ -261,7 +274,10 @@ cd ai-service && npm start
 # Terminal 9: Start MCP Server
 cd mcp-service && npm start
 
-# Terminal 10: Start Logger Service (if running standalone)
+# Terminal 10: Start Vector Service
+cd vector-service && npm start
+
+# Terminal 11: Start Logger Service (if running standalone)
 cd logger-service && npm start
 ```
 
@@ -392,12 +408,16 @@ curl http://localhost:3000/services/health
 - 📧 Notification Service: `http://localhost:3003`
 - 🤖 AI Service: `http://localhost:3008`
 - 🔗 MCP Server: `http://localhost:3009`
+- 🔍 Vector Service: `http://localhost:3010`
 - 📝 Logger Service: Shared (imported by all services)
 
 ## 📚 **Documentation**
 
+### **📖 Complete Documentation Index**
+- **[Documentation Index](./docs/README.md)** - Complete guide to all documentation
+
+### **Service Documentation** (One document per service)
 - **[Frontend README](./frontend/README.md)** - React frontend documentation
-- **[Microservices Overview](./docs/MICROSERVICES_OVERVIEW.md)** - Complete architecture overview
 - **[API Gateway](./docs/API_GATEWAY.md)** - Gateway service documentation
 - **[Authentication Service](./docs/AUTH_SERVICE.md)** - Auth service documentation
 - **[User Service](./docs/USER_SERVICE.md)** - User service documentation
@@ -406,10 +426,17 @@ curl http://localhost:3000/services/health
 - **[Notification Service](./docs/NOTIFICATION_SERVICE.md)** - Notification service documentation
 - **[AI Service](./docs/AI_SERVICE.md)** - AI service documentation
 - **[MCP Service](./docs/MCP_SERVICE.md)** - MCP server documentation
+- **[Vector Service](./docs/VECTOR_SERVICE.md)** - Vector service documentation
 - **[Logger Service](./docs/LOGGER_SERVICE.md)** - Logger service documentation
+
+### **Architecture & Setup Documentation**
+- **[Microservices Overview](./docs/MICROSERVICES_OVERVIEW.md)** - Complete architecture overview
 - **[Authentication Architecture](./docs/AUTHENTICATION_ARCHITECTURE.md)** - Complete auth system guide
 - **[Messaging Architecture](./docs/MESSAGING_ARCHITECTURE.md)** - RabbitMQ integration details
 - **[Database Setup](./docs/DATABASE_SETUP.md)** - Database configuration guide
+
+### **Testing Documentation**
+- **[MCP Testing](./docs/MCP_TESTING.md)** - Comprehensive MCP service testing guide
 
 ## 🏗️ **Architecture Benefits**
 

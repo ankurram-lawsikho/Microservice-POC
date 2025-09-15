@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 
 const Sidebar = () => {
   const { sidebarOpen } = useSelector((state) => state.ui);
+  const [vectorMenuOpen, setVectorMenuOpen] = useState(false);
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: '📊' },
@@ -11,6 +12,12 @@ const Sidebar = () => {
     { name: 'Users', href: '/users', icon: '👥' },
     { name: 'AI Assistant', href: '/ai', icon: '🤖' },
     { name: 'Health', href: '/health', icon: '🏥' },
+  ];
+
+  const vectorNavigation = [
+    { name: 'Vector Search', href: '/vector', icon: '🔍' },
+    { name: 'Analytics', href: '/vector/analytics', icon: '📊' },
+    { name: 'Health', href: '/vector/health', icon: '🏥' },
   ];
 
   return (
@@ -43,6 +50,41 @@ const Sidebar = () => {
                 {item.name}
               </NavLink>
             ))}
+            
+            {/* Vector Menu */}
+            <div className="mt-4">
+              <button
+                onClick={() => setVectorMenuOpen(!vectorMenuOpen)}
+                className="flex items-center w-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md transition-colors"
+              >
+                <span className="mr-3 text-lg">🔍</span>
+                <span>Vector Search</span>
+                <span className={`ml-auto transition-transform ${vectorMenuOpen ? 'rotate-90' : ''}`}>
+                  ▶
+                </span>
+              </button>
+              
+              {vectorMenuOpen && (
+                <div className="ml-6 mt-2 space-y-1">
+                  {vectorNavigation.map((item) => (
+                    <NavLink
+                      key={item.name}
+                      to={item.href}
+                      className={({ isActive }) =>
+                        `flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                          isActive
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`
+                      }
+                    >
+                      <span className="mr-3 text-sm">{item.icon}</span>
+                      {item.name}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </nav>
 
@@ -79,6 +121,41 @@ const Sidebar = () => {
                 <span>{item.name}</span>
               </NavLink>
             ))}
+            
+            {/* Vector Menu */}
+            <div className="mt-4">
+              <button
+                onClick={() => setVectorMenuOpen(!vectorMenuOpen)}
+                className="flex items-center w-full px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md transition-colors"
+              >
+                <span className="mr-3 text-lg">🔍</span>
+                <span>Vector Search</span>
+                <span className={`ml-auto transition-transform ${vectorMenuOpen ? 'rotate-90' : ''}`}>
+                  ▶
+                </span>
+              </button>
+              
+              {vectorMenuOpen && (
+                <div className="ml-6 mt-2 space-y-1">
+                  {vectorNavigation.map((item) => (
+                    <NavLink
+                      key={item.name}
+                      to={item.href}
+                      className={({ isActive }) =>
+                        `flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                          isActive
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`
+                      }
+                    >
+                      <span className="mr-3 text-sm">{item.icon}</span>
+                      {item.name}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </nav>
 

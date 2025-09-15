@@ -20,6 +20,9 @@ app.use(express.json());
 // Messaging service configuration
 const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://localhost:3006';
 
+// Vector service configuration
+const VECTOR_SERVICE_URL = process.env.VECTOR_SERVICE_URL || 'http://localhost:3010';
+
 // Custom middleware to check todo ownership
 const requireTodoOwnership = async (req, res, next) => {
     try {
@@ -93,6 +96,56 @@ const sendNotification = async (notificationData) => {
   } catch (error) {
     logger.error('Error sending notification', { error: error.message });
     // Don't fail the todo operation if notification fails
+    return false;
+  }
+};
+
+// Store todo embedding in vector service
+const storeTodoEmbedding = async (todoData, token) => {
+  try {
+    logger.info('Storing todo embedding in vector service', { todoId: todoData.id });
+    
+    const response = await axios.post(`${VECTOR_SERVICE_URL}/api/vector/todos/embed`, {
+      todoId: todoData.id,
+      task: todoData.task,
+      completed: todoData.completed
+    }, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (response.status === 200) {
+      logger.info('Todo embedding stored successfully', { todoId: todoData.id });
+      return true;
+    } else {
+      logger.error('Failed to store todo embedding');
+      return false;
+    }
+  } catch (error) {
+    logger.error('Error storing todo embedding', { error: error.message });
+    // Don't fail the todo operation if embedding storage fails
+    return false;
+  }
+};
+
+// Delete todo embedding from vector service
+const deleteTodoEmbedding = async (todoId, token) => {
+  try {
+    logger.info('Deleting todo embedding from vector service', { todoId });
+    
+    const response = await axios.delete(`${VECTOR_SERVICE_URL}/api/vector/todos/${todoId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (response.status === 200) {
+      logger.info('Todo embedding deleted successfully', { todoId });
+      return true;
+    } else {
+      logger.error('Failed to delete todo embedding');
+      return false;
+    }
+  } catch (error) {
+    logger.error('Error deleting todo embedding', { error: error.message });
+    // Don't fail the todo operation if embedding deletion fails
     return false;
   }
 };
@@ -294,6 +347,10 @@ app.post('/todos', authenticateToken, async (req, res) => {
         
         logger.todoCreated(savedTodo.id, savedTodo.task, req.user.userId);
         
+        // Store todo embedding in vector service
+        const token = req.headers['authorization'].split(' ')[1];
+        await storeTodoEmbedding(savedTodo, token);
+        
         // Send todo creation notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
@@ -469,6 +526,10 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         
         logger.todoUpdated(updatedTodo.id, updatedTodo.task, req.user.userId);
         
+        // Update todo embedding in vector service
+        const token = req.headers['authorization'].split(' ')[1];
+        await storeTodoEmbedding(updatedTodo, token);
+        
         // Send todo update notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
@@ -554,6 +615,10 @@ app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, re
         await todoRepository.remove(todo);
         
         logger.todoDeleted(todoId, req.user.userId);
+        
+        // Delete todo embedding from vector service
+        const token = req.headers['authorization'].split(' ')[1];
+        await deleteTodoEmbedding(todoId, token);
         
         // Send todo deletion notification via messaging service
         const notificationData = {
@@ -676,6 +741,137 @@ app.get('/todos/pending', authenticateToken, async (req, res) => {
     } catch (error) {
         logger.error('Error fetching pending todos', { error: error.message });
         res.status(500).json({ error: 'Failed to fetch pending todos' });
+    }
+});
+
+/**
+ * @swagger
+ * /todos/search/semantic:
+ *   post:
+ *     summary: Smart semantic search for todos
+ *     description: Search todos using semantic similarity instead of exact text matching
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               query:
+ *                 type: string
+ *                 description: Search query for semantic matching
+ *               limit:
+ *                 type: integer
+ *                 description: Maximum number of results
+ *                 default: 10
+ *               threshold:
+ *                 type: number
+ *                 description: Similarity threshold (0-1)
+ *                 default: 0.7
+ *               includeOthers:
+ *                 type: boolean
+ *                 description: Include anonymized results from other users
+ *                 default: false
+ *     responses:
+ *       200:
+ *         description: Semantic search results
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     query:
+ *                       type: string
+ *                     results:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           todoId:
+ *                             type: string
+ *                           userId:
+ *                             type: integer
+ *                           task:
+ *                             type: string
+ *                           similarity:
+ *                             type: number
+ *                           distance:
+ *                             type: number
+ *                           metadata:
+ *                             type: object
+ *                           createdAt:
+ *                             type: string
+ *                     totalResults:
+ *                       type: integer
+ *                     searchParams:
+ *                       type: object
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Invalid input
+ *       500:
+ *         description: Internal server error
+ */
+app.post('/todos/search/semantic', authenticateToken, async (req, res) => {
+    logger.info('Performing semantic todo search', { 
+        userId: req.user?.userId,
+        email: req.user?.email 
+    });
+    
+    try {
+        const { query, limit = 10, threshold = 0.7, includeOthers = false } = req.body;
+        
+        if (!query) {
+            logger.warn('Missing search query for semantic search', { userId: req.user?.userId });
+            return res.status(400).json({ error: 'Search query is required' });
+        }
+
+        // Call vector service for semantic search
+        const token = req.headers['authorization'].split(' ')[1];
+        const response = await axios.post(`${VECTOR_SERVICE_URL}/api/vector/todos/search`, {
+            query,
+            limit,
+            threshold,
+            includeOthers
+        }, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.status === 200) {
+            logger.success('Semantic search completed successfully', { 
+                userId: req.user.userId,
+                resultCount: response.data.data.totalResults 
+            });
+            res.json(response.data);
+        } else {
+            logger.error('Vector service returned error', { 
+                status: response.status,
+                userId: req.user.userId 
+            });
+            res.status(response.status).json(response.data);
+        }
+
+    } catch (error) {
+        logger.error('Semantic search failed', { 
+            userId: req.user?.userId,
+            error: error.message 
+        });
+        
+        if (error.response) {
+            // Vector service error
+            res.status(error.response.status).json(error.response.data);
+        } else {
+            // Network or other error
+            res.status(500).json({ 
+                error: 'Semantic search failed', 
+                details: error.message 
+            });
+        }
     }
 });
 

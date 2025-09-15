@@ -10,6 +10,9 @@ import TodoList from './components/Todos/TodoList';
 import UserList from './components/Users/UserList';
 import HealthDashboard from './components/Health/HealthDashboard';
 import AIDashboard from './components/AI/AIDashboard';
+import VectorDashboard from './components/Vector/VectorDashboard';
+import VectorAnalytics from './components/Vector/VectorAnalytics';
+import VectorHealth from './components/Vector/VectorHealth';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App() {
@@ -59,6 +62,31 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <AIDashboard />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/vector" element={
+              <ProtectedRoute>
+                <Layout>
+                  <VectorDashboard />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/vector/analytics" element={
+              <ProtectedRoute>
+                <Layout>
+                  <VectorAnalytics />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            
+            
+            <Route path="/vector/health" element={
+              <ProtectedRoute>
+                <Layout>
+                  <VectorHealth />
                 </Layout>
               </ProtectedRoute>
             } />

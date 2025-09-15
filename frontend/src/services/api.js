@@ -192,6 +192,76 @@ export const aiAPI = {
   }
 };
 
+// Vector API
+export const vectorAPI = {
+  // Semantic todo search
+  searchTodos: async (query, limit = 10, threshold = 0.7, includeOthers = false) => {
+    const response = await api.post('/api/vector/todos/search', {
+      query,
+      limit,
+      threshold,
+      includeOthers
+    });
+    return response.data;
+  },
+
+  // Search AI content
+  searchAIContent: async (query, contentType = null, limit = 10, threshold = 0.7) => {
+    const response = await api.post('/api/vector/ai-content/search', {
+      query,
+      contentType,
+      limit,
+      threshold
+    });
+    return response.data;
+  },
+
+  // Generate embedding
+  generateEmbedding: async (text) => {
+    const response = await api.post('/api/vector/embedding/generate', {
+      text
+    });
+    return response.data;
+  },
+
+  // Store todo embedding
+  storeTodoEmbedding: async (todoId, task, completed) => {
+    const response = await api.post('/api/vector/todos/embed', {
+      todoId,
+      task,
+      completed
+    });
+    return response.data;
+  },
+
+  // Store AI content embedding
+  storeAIContentEmbedding: async (contentType, originalText, metadata = {}) => {
+    const response = await api.post('/api/vector/ai-content/embed', {
+      contentType,
+      originalText,
+      metadata
+    });
+    return response.data;
+  },
+
+  // Store user profile embedding
+  storeUserProfileEmbedding: async (name, email, role = 'user', metadata = {}) => {
+    const response = await api.post('/api/vector/user-profile/embed', {
+      name,
+      email,
+      role,
+      metadata
+    });
+    return response.data;
+  },
+
+  // Get vector service health
+  getVectorHealth: async () => {
+    const response = await api.get('/api/vector/health');
+    return response.data;
+  }
+};
+
 // Health API
 export const healthAPI = {
   getSystemHealth: async () => {

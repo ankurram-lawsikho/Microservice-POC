@@ -11,12 +11,14 @@ import { createTodo } from '../../store/slices/todosSlice';
 import TodoItem from './TodoItem';
 import TodoForm from './TodoForm';
 import TaskBreakdown from '../AI/TaskBreakdown';
+import SemanticSearch from './SemanticSearch';
 
 const TodoList = () => {
   const dispatch = useDispatch();
   const { todos, loading, error, filter } = useSelector((state) => state.todos);
   const [showForm, setShowForm] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showSemanticSearch, setShowSemanticSearch] = useState(false);
 
   useEffect(() => {
     dispatch(fetchTodos());
@@ -78,6 +80,12 @@ const TodoList = () => {
           </svg>
           AI Task Breakdown
         </button>
+          <button
+            onClick={() => setShowSemanticSearch(true)}
+            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+          >
+            🔍 Smart Search
+          </button>
           <button
             onClick={() => setShowForm(true)}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
@@ -162,6 +170,13 @@ const TodoList = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Semantic Search Modal */}
+      {showSemanticSearch && (
+        <SemanticSearch
+          onClose={() => setShowSemanticSearch(false)}
+        />
       )}
 
       {/* Todo List */}

@@ -25,6 +25,7 @@ const { TodoTools } = require('./tools/todo-tools');
 const { UserTools } = require('./tools/user-tools');
 const { AnalyticsTools } = require('./tools/analytics-tools');
 const { AITools } = require('./tools/ai-tools');
+const { VectorTools } = require('./tools/vector-tools');
 
 class MicroservicesMCPServer {
   constructor() {
@@ -49,11 +50,13 @@ class MicroservicesMCPServer {
     this.userTools = new UserTools();
     this.analyticsTools = new AnalyticsTools();
     this.aiTools = new AITools();
+    this.vectorTools = new VectorTools();
     
     // Pass token storage to all tools
     this.todoTools.userTokens = this.userTokens;
     this.userTools.userTokens = this.userTokens;
     this.aiTools.userTokens = this.userTokens;
+    this.vectorTools.userTokens = this.userTokens;
 
     this.setupHandlers();
   }
@@ -290,6 +293,99 @@ class MicroservicesMCPServer {
             },
             required: ["userId"]
           }
+        },
+
+        // Vector Search Tools
+        {
+          name: "search_similar_todos",
+          description: "Search for similar todos using semantic similarity",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Search query for semantic matching" },
+              userId: { type: "number", description: "User ID for authentication" },
+              limit: { type: "number", description: "Maximum number of results", default: 10 },
+              threshold: { type: "number", description: "Similarity threshold (0-1)", default: 0.7 },
+              includeOthers: { type: "boolean", description: "Include anonymized results from other users", default: false }
+            },
+            required: ["query", "userId"]
+          }
+        },
+        {
+          name: "search_ai_content",
+          description: "Search for similar AI-generated content using semantic similarity",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: { type: "string", description: "Search query for semantic matching" },
+              userId: { type: "number", description: "User ID for authentication" },
+              contentType: { type: "string", description: "Filter by content type (optional)" },
+              limit: { type: "number", description: "Maximum number of results", default: 10 },
+              threshold: { type: "number", description: "Similarity threshold (0-1)", default: 0.7 }
+            },
+            required: ["query", "userId"]
+          }
+        },
+        {
+          name: "get_contextual_suggestions",
+          description: "Get contextual suggestions based on user's current todos and profile",
+          inputSchema: {
+            type: "object",
+            properties: {
+              userId: { type: "number", description: "User ID for authentication" },
+              context: { type: "string", description: "Context for suggestions" },
+              limit: { type: "number", description: "Maximum number of suggestions", default: 5 }
+            },
+            required: ["userId", "context"]
+          }
+        },
+        {
+          name: "generate_embedding",
+          description: "Generate embedding vector for text",
+          inputSchema: {
+            type: "object",
+            properties: {
+              text: { type: "string", description: "Text to generate embedding for" },
+              userId: { type: "number", description: "User ID for authentication" }
+            },
+            required: ["text", "userId"]
+          }
+        },
+        {
+          name: "store_todo_embedding",
+          description: "Store embedding for a todo item",
+          inputSchema: {
+            type: "object",
+            properties: {
+              todoId: { type: "string", description: "Todo ID" },
+              task: { type: "string", description: "Todo task text" },
+              completed: { type: "boolean", description: "Completion status" },
+              userId: { type: "number", description: "User ID for authentication" }
+            },
+            required: ["todoId", "task", "userId"]
+          }
+        },
+        {
+          name: "store_ai_content_embedding",
+          description: "Store embedding for AI-generated content",
+          inputSchema: {
+            type: "object",
+            properties: {
+              userId: { type: "number", description: "User ID for authentication" },
+              contentType: { type: "string", description: "Type of AI content" },
+              originalText: { type: "string", description: "Original text content" },
+              metadata: { type: "object", description: "Additional metadata" }
+            },
+            required: ["userId", "contentType", "originalText"]
+          }
+        },
+        {
+          name: "get_vector_service_health",
+          description: "Check health status of vector service",
+          inputSchema: {
+            type: "object",
+            properties: {}
+          }
         }
       ]
     }));
@@ -455,6 +551,29 @@ class MicroservicesMCPServer {
             break;
           case "get_auth_token":
             result = await this.getAuthToken(args);
+            break;
+            
+          // Vector Tools
+          case "search_similar_todos":
+            result = await this.vectorTools.searchSimilarTodos(args);
+            break;
+          case "search_ai_content":
+            result = await this.vectorTools.searchAIContent(args);
+            break;
+          case "get_contextual_suggestions":
+            result = await this.vectorTools.getContextualSuggestions(args);
+            break;
+          case "generate_embedding":
+            result = await this.vectorTools.generateEmbedding(args);
+            break;
+          case "store_todo_embedding":
+            result = await this.vectorTools.storeTodoEmbedding(args);
+            break;
+          case "store_ai_content_embedding":
+            result = await this.vectorTools.storeAIContentEmbedding(args);
+            break;
+          case "get_vector_service_health":
+            result = await this.vectorTools.getVectorServiceHealth(args);
             break;
             
           default:

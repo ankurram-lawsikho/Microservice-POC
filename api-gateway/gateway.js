@@ -35,6 +35,7 @@ const MESSAGING_SERVICE_URL = process.env.MESSAGING_SERVICE_URL || 'http://local
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007';
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:3008';
 const MCP_SERVICE_URL = process.env.MCP_SERVICE_URL || 'http://localhost:3009';
+const VECTOR_SERVICE_URL = process.env.VECTOR_SERVICE_URL || 'http://localhost:3010';
 
 /**
  * @swagger
@@ -149,7 +150,8 @@ app.get('/services/health', async (req, res) => {
         { name: 'Messaging Service', url: MESSAGING_SERVICE_URL, port: 3006 },
         { name: 'Auth Service', url: AUTH_SERVICE_URL, port: 3007 },
         { name: 'AI Service', url: AI_SERVICE_URL, port: 3008 },
-        { name: 'MCP Service', url: MCP_SERVICE_URL, port: 3009 }
+        { name: 'MCP Service', url: MCP_SERVICE_URL, port: 3009 },
+        { name: 'Vector Service', url: VECTOR_SERVICE_URL, port: 3010 }
     ];
 
     const healthResults = [];
@@ -158,7 +160,7 @@ app.get('/services/health', async (req, res) => {
         try {
             // Different services have different health endpoint paths
             let healthEndpoint = '/health';
-            if (service.name === 'Notification Service' || service.name === 'Messaging Service' || service.name === 'Auth Service' || service.name === 'AI Service') {
+            if (service.name === 'Notification Service' || service.name === 'Messaging Service' || service.name === 'Auth Service' || service.name === 'AI Service' || service.name === 'Vector Service') {
                 healthEndpoint = '/api/health';
             }
             const response = await axios.get(`${service.url}${healthEndpoint}`, { timeout: 5000 });
@@ -987,6 +989,46 @@ app.use('/api/ai', createProxyMiddleware({
     },
     onProxyRes: (proxyRes, req, res) => {
         logger.info('AI service response', { 
+            statusCode: proxyRes.statusCode 
+        });
+    }
+}));
+
+/**
+ * @swagger
+ * /api/vector:
+ *   get:
+ *     summary: Vector service information
+ *     description: Get information about the vector service
+ *     tags: [Vector]
+ *     responses:
+ *       200:
+ *         description: Vector service information
+ */
+// Vector service routes (protected)
+app.use('/api/vector', createProxyMiddleware({
+    target: VECTOR_SERVICE_URL,
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/vector/health': '/api/health',
+        '^/api/vector/info': '/api/info',
+        '^/api/vector': '/api/vector'
+    },
+    onProxyReq: (proxyReq, req, res) => {
+        logger.info('Vector service request', { 
+            method: req.method, 
+            path: req.path 
+        });
+
+        if (req.body && Object.keys(req.body).length > 0) {
+            const bodyData = JSON.stringify(req.body);
+            proxyReq.setHeader('Content-Type', 'application/json');
+            proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+            proxyReq.write(bodyData);
+        }
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        logger.info('Vector service response', { 
             statusCode: proxyRes.statusCode 
         });
     }
