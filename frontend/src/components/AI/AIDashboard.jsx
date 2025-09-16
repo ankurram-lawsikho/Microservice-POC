@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import TodoAnalysis from './TodoAnalysis';
 import TodoSuggestions from './TodoSuggestions';
 import UserInsights from './UserInsights';
-import TaskBreakdown from './TaskBreakdown';
+import TaskBreakdown from './TaskBreakdown'; 
 
 const AIDashboard = () => {
   const [activeTab, setActiveTab] = useState('analysis');

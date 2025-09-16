@@ -354,10 +354,10 @@ app.post('/todos', authenticateToken, async (req, res) => {
         // Send todo creation notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
-            recipient: 'test@example.com',
+            recipient: req.user.email, // real user email
             subject: 'New Todo Created',
             content: {
-                name: 'Test User',
+                name: req.user.name || req.user.email, // real user name
                 message: 'A new todo has been created for you',
                 todos: [{
                     task: savedTodo.task,
@@ -533,10 +533,10 @@ app.put('/todos/:id', authenticateToken, requireTodoOwnership, async (req, res) 
         // Send todo update notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
-            recipient: 'test@example.com',
+            recipient: req.user.email, // real user email
             subject: 'Todo Updated',
             content: {
-                name: 'Test User',
+                name: req.user.name || req.user.email, // real user name
                 message: 'A todo has been updated for you',
                 todos: [{
                     task: updatedTodo.task,
@@ -623,10 +623,10 @@ app.delete('/todos/:id', authenticateToken, requireTodoOwnership, async (req, re
         // Send todo deletion notification via messaging service
         const notificationData = {
             type: 'todo_reminder',
-            recipient: 'test@example.com',
+            recipient: req.user.email,
             subject: 'Todo Deleted',
             content: {
-                name: 'Test User',
+                name: req.user.name || req.user.email,
                 message: 'A todo has been deleted for you',
                 todos: [{
                     task: todo.task,

@@ -1,5 +1,8 @@
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
+import { createLogger } from '../logger-service/logger.js';
+
+const logger = createLogger('auth-middleware');
 
 // Configuration
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007';
@@ -15,7 +18,10 @@ export const authenticateToken = async (req, res, next) => {
         const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
         if (!token) {
-            console.log('❌ [AUTH] No token provided');
+            logger.warn('Authentication failed - no token provided', { 
+                ip: req.ip,
+                userAgent: req.get('User-Agent')
+            });
             return res.status(401).json({ 
                 error: 'Access token required',
                 message: 'Please provide a valid JWT token in the Authorization header'
@@ -26,10 +32,16 @@ export const authenticateToken = async (req, res, next) => {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             req.user = decoded;
-            console.log('✅ [AUTH] Token verified locally for user:', decoded.email, 'userId:', decoded.userId, 'role:', decoded.role);
+            logger.info('Token verified locally', { 
+                userId: decoded.userId,
+                email: decoded.email,
+                role: decoded.role
+            });
             return next();
         } catch (jwtError) {
-            console.log('⚠️  [AUTH] Local token verification failed, checking with auth service');
+            logger.warn('Local token verification failed, checking with auth service', { 
+                error: jwtError.message 
+            });
         }
 
         // If local verification fails, verify with auth service
@@ -40,13 +52,20 @@ export const authenticateToken = async (req, res, next) => {
             
             if (response.data.valid) {
                 req.user = response.data.user;
-                console.log('✅ [AUTH] Token verified with auth service for user:', req.user.email, 'userId:', req.user.userId, 'role:', req.user.role);
+                logger.info('Token verified with auth service', { 
+                    userId: req.user.userId,
+                    email: req.user.email,
+                    role: req.user.role
+                });
                 next();
             } else {
                 throw new Error('Token invalid');
             }
         } catch (authError) {
-            console.log('❌ [AUTH] Token verification failed with auth service');
+            logger.error('Token verification failed with auth service', { 
+                status: response.status,
+                error: response.data?.error
+            });
             return res.status(403).json({ 
                 error: 'Invalid or expired token',
                 message: 'Please login again to get a new token'
@@ -79,10 +98,20 @@ export const requireRole = (role, allowAdmin = true) => {
         const userRole = req.user.role || 'user';
         
         if (userRole === role || (allowAdmin && userRole === 'admin')) {
-            console.log('✅ [AUTH] Role check passed for user:', req.user.email, 'role:', userRole);
+            logger.info('Role check passed', { 
+                userId: req.user.userId,
+                email: req.user.email,
+                userRole: userRole,
+                requiredRole: role
+            });
             next();
         } else {
-            console.log('❌ [AUTH] Insufficient permissions for user:', req.user.email, 'required role:', role);
+            logger.warn('Insufficient permissions', { 
+                userId: req.user.userId,
+                email: req.user.email,
+                userRole: userRole,
+                requiredRole: role
+            });
             return res.status(403).json({ 
                 error: 'Insufficient permissions',
                 message: `This resource requires ${role} role or higher`
@@ -108,7 +137,10 @@ export const requireOwnership = (resourceUserIdField = 'userId') => {
         
         // Admin can access any resource
         if (userRole === 'admin') {
-            console.log('✅ [AUTH] Admin access granted for user:', req.user.email);
+            logger.info('Admin access granted', { 
+                userId: req.user.userId,
+                email: req.user.email
+            });
             return next();
         }
 
@@ -116,7 +148,10 @@ export const requireOwnership = (resourceUserIdField = 'userId') => {
         const resourceUserId = req.params[resourceUserIdField] || req.body[resourceUserIdField];
         
         if (!resourceUserId) {
-            console.log('⚠️  [AUTH] No resource user ID found in request');
+            logger.warn('No resource user ID found in request', { 
+                path: req.path,
+                method: req.method
+            });
             return res.status(400).json({ 
                 error: 'Resource user ID required',
                 message: 'Unable to determine resource ownership'
@@ -125,10 +160,18 @@ export const requireOwnership = (resourceUserIdField = 'userId') => {
 
         // Check if user owns the resource
         if (parseInt(req.user.userId) === parseInt(resourceUserId)) {
-            console.log('✅ [AUTH] Ownership verified for user:', req.user.email);
+            logger.info('Ownership verified', { 
+                userId: req.user.userId,
+                email: req.user.email,
+                resourceUserId: resourceUserId
+            });
             next();
         } else {
-            console.log('❌ [AUTH] Ownership check failed for user:', req.user.email);
+            logger.warn('Ownership check failed', { 
+                userId: req.user.userId,
+                email: req.user.email,
+                resourceUserId: resourceUserId
+            });
             return res.status(403).json({ 
                 error: 'Access denied',
                 message: 'You can only access your own resources'
@@ -154,10 +197,18 @@ export const requireAccess = (accessCheckFunction) => {
             const hasAccess = await accessCheckFunction(req.user, req);
             
             if (hasAccess) {
-                console.log('✅ [AUTH] Access granted for user:', req.user.email);
+                logger.info('Access granted', { 
+                    userId: req.user.userId,
+                    email: req.user.email,
+                    checkType: 'admin_or_owner'
+                });
                 next();
             } else {
-                console.log('❌ [AUTH] Access denied for user:', req.user.email);
+                logger.warn('Access denied', { 
+                    userId: req.user.userId,
+                    email: req.user.email,
+                    checkType: 'admin_or_owner'
+                });
                 return res.status(403).json({ 
                     error: 'Access denied',
                     message: 'You do not have permission to access this resource'
@@ -182,7 +233,10 @@ export const optionalAuth = (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        console.log('ℹ️  [AUTH] No token provided (optional auth)');
+        logger.info('Optional authentication - no token provided', { 
+            ip: req.ip,
+            path: req.path
+        });
         req.user = null;
         return next();
     }
@@ -191,9 +245,16 @@ export const optionalAuth = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;
-        console.log('✅ [AUTH] Optional token verified for user:', decoded.email);
+        logger.info('Optional token verified', { 
+            userId: decoded.userId,
+            email: decoded.email,
+            role: decoded.role
+        });
     } catch (error) {
-        console.log('⚠️  [AUTH] Optional token verification failed');
+        logger.warn('Optional token verification failed', { 
+            error: error.message,
+            ip: req.ip
+        });
         req.user = null;
     }
     
@@ -222,7 +283,11 @@ export const rateLimit = (maxRequests = 100, windowMs = 15 * 60 * 1000) => {
         const userRequests = requests.get(ip) || [];
         
         if (userRequests.length >= maxRequests) {
-            console.log('⚠️  [AUTH] Rate limit exceeded for IP:', ip);
+            logger.warn('Rate limit exceeded', { 
+                ip: ip,
+                limit: limit,
+                windowMs: windowMs
+            });
             return res.status(429).json({ 
                 error: 'Too many requests',
                 message: 'Rate limit exceeded. Please try again later.'

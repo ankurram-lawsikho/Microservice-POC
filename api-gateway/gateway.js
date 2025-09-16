@@ -36,6 +36,7 @@ const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3007'
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:3008';
 const MCP_SERVICE_URL = process.env.MCP_SERVICE_URL || 'http://localhost:3009';
 const VECTOR_SERVICE_URL = process.env.VECTOR_SERVICE_URL || 'http://localhost:3010';
+const LOGGER_API_URL = process.env.LOGGER_API_URL || 'http://localhost:3011';
 
 /**
  * @swagger
@@ -1029,6 +1030,26 @@ app.use('/api/vector', createProxyMiddleware({
     },
     onProxyRes: (proxyRes, req, res) => {
         logger.info('Vector service response', { 
+            statusCode: proxyRes.statusCode 
+        });
+    }
+}));
+
+// Logger API routes (protected)
+app.use('/api/logger', createProxyMiddleware({
+    target: LOGGER_API_URL,
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/logger': '/api/logger'
+    },
+    onProxyReq: (proxyReq, req, res) => {
+        logger.info('Logger API request', { 
+            method: req.method, 
+            path: req.path 
+        });
+    },
+    onProxyRes: (proxyRes, req, res) => {
+        logger.info('Logger API response', { 
             statusCode: proxyRes.statusCode 
         });
     }

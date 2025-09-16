@@ -368,24 +368,42 @@ app.post('/api/notifications/send', async (req, res) => {
     const { type, recipient, subject, content, template } = req.body;
     
     if (!recipient || !type) {
-      console.log('⚠️  [API] Invalid request - missing recipient or type');
+      logger.warn('Invalid notification request - missing required fields', { 
+        recipient: !!recipient,
+        type: !!type 
+      });
       return res.status(400).json({ error: 'Recipient and type are required' });
     }
     
-    console.log('📡 [API] Direct notification request:', { type, recipient, template });
+    logger.info('Direct notification request received', { 
+      type, 
+      recipient, 
+      template: !!template 
+    });
     await sendNotification({ type, recipient, subject, content, template });
     
-    console.log('✅ [API] Direct notification sent successfully');
+    logger.success('Direct notification sent successfully', { 
+      type, 
+      recipient 
+    });
     res.json({ message: 'Notification sent successfully' });
   } catch (error) {
-    console.error('❌ [API] Direct notification error:', error.message);
+    logger.error('Direct notification failed', { 
+      error: error.message,
+      type: req.body.type,
+      recipient: req.body.recipient
+    });
     res.status(500).json({ error: 'Failed to send notification' });
   }
 });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  console.log('🏥 [API] Health check requested');
+  logger.healthCheck('healthy', { 
+    service: 'notification-service',
+    rabbitmq: channel ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
   res.json({ 
     status: 'healthy', 
     service: 'notification-service',
@@ -396,7 +414,7 @@ app.get('/api/health', (req, res) => {
 
 // Get queue status
 app.get('/api/queue/status', (req, res) => {
-  console.log('📊 [API] Queue status requested');
+  logger.info('Queue status requested');
   if (channel) {
     res.json({ 
       status: 'connected',

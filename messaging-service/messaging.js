@@ -39,10 +39,12 @@ const initializeRabbitMQ = async () => {
       durable: true
     });
     
-    logger.queueConnected(`${QUEUE_NAME}, ${DLQ_NAME}`);
+    logger.queueEvent('connected', `${QUEUE_NAME}, ${DLQ_NAME}`);
   } catch (error) {
-    logger.queueError(error, `${QUEUE_NAME}, ${DLQ_NAME}`);
-    logger.info('Retrying connection in 5 seconds...');
+    logger.queueEvent('connection_failed', `${QUEUE_NAME}, ${DLQ_NAME}`, { 
+      error: error.message,
+      retryIn: '5 seconds'
+    });
     setTimeout(initializeRabbitMQ, 5000);
   }
 };
@@ -75,14 +77,17 @@ const publishMessage = async (queueName, messageData) => {
     });
     
     if (success) {
-      logger.messagePublished(messageId, queueName, messageData.type, messageData.recipient);
+      logger.queueEvent('message_published', queueName, {
+        messageId,
+        type: messageData.type,
+        recipient: messageData.recipient
+      });
       return { success: true, messageId };
     } else {
       throw new Error('Failed to publish message to queue');
     }
   } catch (error) {
-    logger.error('Message publishing failed', {
-      queue: queueName,
+    logger.queueEvent('publish_failed', queueName, {
       error: error.message,
       type: messageData?.type
     });
@@ -107,7 +112,7 @@ app.post('/api/messages/publish', async (req, res) => {
     const result = await publishMessage(queue, data);
     const duration = Date.now() - startTime;
     
-    logger.apiRequest('POST', '/api/messages/publish', 200, duration);
+    logger.apiRequest('POST', '/api/messages/publish', 200, duration, { queue });
     
     res.json({ 
       message: 'Message published successfully',
@@ -116,9 +121,9 @@ app.post('/api/messages/publish', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('Message publishing via API failed', {
-      queue: req.body?.queue,
-      error: error.message
+    logger.logError(error, {
+      context: 'api_publish',
+      queue: req.body?.queue
     });
     res.status(500).json({ error: 'Failed to publish message' });
   }
@@ -141,7 +146,9 @@ app.post('/api/notifications/publish', async (req, res) => {
     const result = await publishMessage(QUEUE_NAME, notificationData);
     const duration = Date.now() - startTime;
     
-    logger.apiRequest('POST', '/api/notifications/publish', 200, duration);
+    logger.apiRequest('POST', '/api/notifications/publish', 200, duration, { 
+      type: notificationData.type 
+    });
     
     res.json({ 
       message: 'Notification published successfully',
@@ -151,10 +158,10 @@ app.post('/api/notifications/publish', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('Notification publishing via API failed', {
+    logger.logError(error, {
+      context: 'notification_publish',
       type: req.body?.type,
-      recipient: req.body?.recipient,
-      error: error.message
+      recipient: req.body?.recipient
     });
     res.status(500).json({ error: 'Failed to publish notification' });
   }
@@ -162,8 +169,6 @@ app.post('/api/notifications/publish', async (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
-  logger.info('Health check requested');
-  
   try {
     let queueInfo = null;
     let dlqInfo = null;
@@ -177,9 +182,8 @@ app.get('/api/health', async (req, res) => {
       }
     }
     
-    res.json({ 
-      status: 'healthy', 
-      service: 'messaging-service',
+    const healthStatus = channel ? 'healthy' : 'degraded';
+    const healthDetails = {
       rabbitmq: channel ? 'connected' : 'disconnected',
       queues: {
         main: {
@@ -192,11 +196,19 @@ app.get('/api/health', async (req, res) => {
           messageCount: dlqInfo?.messageCount || 0,
           consumerCount: dlqInfo?.consumerCount || 0
         }
-      },
+      }
+    };
+    
+    logger.healthCheck(healthStatus, healthDetails);
+    
+    res.json({ 
+      status: healthStatus, 
+      service: 'messaging-service',
+      ...healthDetails,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('Health check failed', { error: error.message });
+    logger.healthCheck('unhealthy', { error: error.message });
     res.status(500).json({ 
       status: 'unhealthy',
       error: error.message,
@@ -207,9 +219,8 @@ app.get('/api/health', async (req, res) => {
 
 // Get queue status
 app.get('/api/queue/status', async (req, res) => {
-  logger.info('Queue status requested');
-  
   if (!channel) {
+    logger.queueEvent('status_check_failed', 'all', { reason: 'channel_unavailable' });
     return res.status(503).json({ 
       status: 'disconnected',
       error: 'RabbitMQ channel not available'
@@ -219,6 +230,11 @@ app.get('/api/queue/status', async (req, res) => {
   try {
     const queueInfo = await channel.checkQueue(QUEUE_NAME);
     const dlqInfo = await channel.checkQueue(DLQ_NAME);
+    
+    logger.queueEvent('status_checked', 'all', {
+      mainQueueMessages: queueInfo.messageCount,
+      dlqMessages: dlqInfo.messageCount
+    });
     
     res.json({ 
       status: 'connected',
@@ -238,7 +254,7 @@ app.get('/api/queue/status', async (req, res) => {
       url: RABBITMQ_URL
     });
   } catch (error) {
-    logger.error('Failed to get queue status', { error: error.message });
+    logger.logError(error, { context: 'queue_status_check' });
     res.status(500).json({ 
       status: 'error',
       error: error.message
@@ -248,9 +264,8 @@ app.get('/api/queue/status', async (req, res) => {
 
 // DLQ monitoring endpoint
 app.get('/api/dlq/messages', async (req, res) => {
-  logger.info('DLQ messages requested');
-  
   if (!channel) {
+    logger.queueEvent('dlq_check_failed', DLQ_NAME, { reason: 'channel_unavailable' });
     return res.status(503).json({ 
       error: 'RabbitMQ channel not available'
     });
@@ -259,6 +274,11 @@ app.get('/api/dlq/messages', async (req, res) => {
   try {
     const dlqInfo = await channel.checkQueue(DLQ_NAME);
     
+    logger.queueEvent('dlq_checked', DLQ_NAME, {
+      messageCount: dlqInfo.messageCount,
+      consumerCount: dlqInfo.consumerCount
+    });
+    
     res.json({
       queue: DLQ_NAME,
       messageCount: dlqInfo.messageCount,
@@ -266,7 +286,7 @@ app.get('/api/dlq/messages', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    logger.error('Failed to get DLQ info', { error: error.message });
+    logger.logError(error, { context: 'dlq_check' });
     res.status(500).json({ 
       error: error.message
     });
@@ -275,7 +295,7 @@ app.get('/api/dlq/messages', async (req, res) => {
 
 // Get all available queues
 app.get('/api/queues', (req, res) => {
-  logger.info('Queues list requested');
+  logger.queueEvent('queues_listed', 'all', { queueCount: 2 });
   res.json({
     queues: [
       {
@@ -300,7 +320,8 @@ process.on('SIGINT', async () => {
   logger.info('Received SIGINT, shutting down gracefully');
   if (channel) await channel.close();
   if (connection) await connection.close();
-  logger.info('Messaging service stopped');
+  logger.serviceStop();
+  await logger.close(); // Close MongoDB connection
   process.exit(0);
 });
 
@@ -308,7 +329,8 @@ process.on('SIGTERM', async () => {
   logger.info('Received SIGTERM, shutting down gracefully');
   if (channel) await channel.close();
   if (connection) await connection.close();
-  logger.info('Messaging service stopped');
+  logger.serviceStop();
+  await logger.close(); // Close MongoDB connection
   process.exit(0);
 });
 

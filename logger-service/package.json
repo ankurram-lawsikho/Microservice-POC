@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node logger.js",
-    "test": "node test-logger.js"
+    "api": "node log-api.js",
+    "test": "node test-logger.js",
+    "test-enhanced": "node test-enhanced-logger.js"
   },
   "keywords": [
     "logging",
@@ -17,7 +19,10 @@
   "author": "Microservices POC",
   "license": "MIT",
   "dependencies": {
-    "chalk": "^5.3.0"
+    "chalk": "^5.3.0",
+    "mongodb": "^6.3.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { vectorAPI } from '../../services/api';
-import { createLogger } from '../../../../logger-service/logger.js';
-
-const logger = createLogger('VectorHealth');
+// Removed logger import - not needed in frontend
 
 const VectorHealth = () => {
   const [healthData, setHealthData] = useState(null);
@@ -19,16 +17,16 @@ const VectorHealth = () => {
 
   const fetchHealthData = async () => {
     try {
-      logger.info('Fetching vector service health data');
+      console.log('Fetching vector service health data');
       const response = await vectorAPI.getVectorHealth();
       setHealthData(response);
       setError(null);
       setLastChecked(new Date());
-      logger.success('Vector health data fetched successfully', { 
+      console.log('Vector health data fetched successfully', { 
         status: response.status 
       });
     } catch (error) {
-      logger.error('Failed to fetch vector health data', { error: error.message });
+      console.error('Failed to fetch vector health data:', error.message);
       setError(error.message);
       setLastChecked(new Date());
     } finally {

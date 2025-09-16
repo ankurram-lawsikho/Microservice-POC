@@ -13,6 +13,7 @@ import AIDashboard from './components/AI/AIDashboard';
 import VectorDashboard from './components/Vector/VectorDashboard';
 import VectorAnalytics from './components/Vector/VectorAnalytics';
 import VectorHealth from './components/Vector/VectorHealth';
+import LoggerDashboard from './components/Logger/LoggerDashboard';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App() {
@@ -87,6 +88,14 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <VectorHealth />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            
+            <Route path="/logs" element={
+              <ProtectedRoute>
+                <Layout>
+                  <LoggerDashboard />
                 </Layout>
               </ProtectedRoute>
             } />

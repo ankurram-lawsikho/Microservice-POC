@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { vectorAPI } from '../../services/api';
-import { createLogger } from '../../../../logger-service/logger.js';
-
-const logger = createLogger('VectorAnalytics');
 
 const VectorAnalytics = () => {
   const [analytics, setAnalytics] = useState(null);
@@ -18,7 +15,7 @@ const VectorAnalytics = () => {
     setError(null);
     
     try {
-      logger.info('Fetching vector analytics');
+      console.log('Fetching vector analytics');
       
       // Get embedding statistics from the vector service
       const healthResponse = await vectorAPI.getVectorHealth();
@@ -42,12 +39,12 @@ const VectorAnalytics = () => {
         };
         
         setAnalytics(analyticsData);
-        logger.success('Vector analytics fetched successfully');
+        console.log('Vector analytics fetched successfully');
       } else {
         throw new Error('Vector service health check failed');
       }
     } catch (error) {
-      logger.error('Failed to fetch vector analytics', { error: error.message });
+      console.error('Failed to fetch vector analytics:', error.message);
       setError(error.message);
     } finally {
       setIsLoading(false);

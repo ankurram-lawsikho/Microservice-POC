@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { vectorAPI } from '../../services/api';
-import { createLogger } from '../../../../logger-service/logger.js';
-
-const logger = createLogger('VectorDashboard');
+// Removed logger import - not needed in frontend
 
 const VectorDashboard = () => {
   const [activeTab, setActiveTab] = useState('search');
@@ -38,7 +36,7 @@ const VectorDashboard = () => {
 
     setIsLoading(true);
     try {
-      logger.info('Performing semantic todo search', { query: searchQuery, searchParams });
+      console.log('Performing semantic todo search', { query: searchQuery, searchParams });
       
       const response = await vectorAPI.searchTodos(
         searchQuery, 
@@ -51,17 +49,17 @@ const VectorDashboard = () => {
       
       if (response.success) {
         setSearchResults(response.data);
-        logger.success('Semantic todo search completed', { 
+        console.log('Semantic todo search completed', { 
           resultCount: response.data.totalResults 
         });
         console.log('Search results set:', response.data); // Debug log
       } else {
-        logger.error('Semantic todo search failed', { error: response.error });
+        console.error('Semantic todo search failed:', response.error);
         console.error('Search failed:', response.error); // Debug log
         alert('Search failed: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
-      logger.error('Semantic todo search error', { error: error.message });
+      console.error('Semantic todo search error:', error.message);
       console.error('Search error:', error); // Debug log
       alert('Search failed: ' + error.message);
     } finally {
@@ -75,7 +73,7 @@ const VectorDashboard = () => {
 
     setIsLoading(true);
     try {
-      logger.info('Performing AI content search', { query: searchQuery, searchParams });
+      console.log('Performing AI content search', { query: searchQuery, searchParams });
       
       const response = await vectorAPI.searchAIContent(
         searchQuery, 
@@ -86,15 +84,15 @@ const VectorDashboard = () => {
       
       if (response.success) {
         setAiContentResults(response.data);
-        logger.success('AI content search completed', { 
+        console.log('AI content search completed', { 
           resultCount: response.data.totalResults 
         });
       } else {
-        logger.error('AI content search failed', { error: response.error });
+        console.error('AI content search failed:', response.error);
         alert('Search failed: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
-      logger.error('AI content search error', { error: error.message });
+      console.error('AI content search error:', error.message);
       alert('Search failed: ' + error.message);
     } finally {
       setIsLoading(false);
@@ -107,21 +105,21 @@ const VectorDashboard = () => {
 
     setIsLoading(true);
     try {
-      logger.info('Generating embedding', { textLength: embeddingText.length });
+      console.log('Generating embedding', { textLength: embeddingText.length });
       
       const response = await vectorAPI.generateEmbedding(embeddingText);
       
       if (response.success) {
         setGeneratedEmbedding(response.data);
-        logger.success('Embedding generated successfully', { 
+        console.log('Embedding generated successfully', { 
           dimensions: response.data.embedding.length 
         });
       } else {
-        logger.error('Embedding generation failed', { error: response.error });
+        console.error('Embedding generation failed:', response.error);
         alert('Failed to generate embedding: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
-      logger.error('Embedding generation error', { error: error.message });
+      console.error('Embedding generation error:', error.message);
       alert('Failed to generate embedding: ' + error.message);
     } finally {
       setIsLoading(false);

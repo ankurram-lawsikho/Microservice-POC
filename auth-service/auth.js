@@ -166,12 +166,14 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Register endpoint
 app.post('/api/auth/register', async (req, res) => {
-    console.log('📝 [AUTH] Registration attempt');
+    logger.info('Registration attempt started', { email: req.body.email });
     try {
         const { name, email, password } = req.body;
         
         if (!name || !email || !password) {
-            console.log('⚠️  [AUTH] Missing registration fields');
+            logger.warn('Registration failed - missing required fields', { 
+                providedFields: Object.keys(req.body) 
+            });
             return res.status(400).json({ error: 'Name, email, and password are required' });
         }
 
@@ -188,7 +190,11 @@ app.post('/api/auth/register', async (req, res) => {
         const userResponse = await axios.post(`${USER_SERVICE_URL}/users`, userData);
         const newUser = userResponse.data;
 
-        console.log('✅ [AUTH] Registration successful for user:', email);
+        logger.success('Registration successful', { 
+            userId: newUser.id,
+            email: email,
+            name: newUser.name 
+        });
         res.status(201).json({
             message: 'User registered successfully. Please login to get your access token.',
             user: {
@@ -210,7 +216,10 @@ app.post('/api/auth/register', async (req, res) => {
 
 // Verify token endpoint
 app.post('/api/auth/verify', authenticateToken, (req, res) => {
-    console.log('🔍 [AUTH] Token verification for user:', req.user.email);
+    logger.info('Token verification successful', { 
+        userId: req.user.userId,
+        email: req.user.email 
+    });
     res.json({
         valid: true,
         user: req.user
@@ -219,7 +228,10 @@ app.post('/api/auth/verify', authenticateToken, (req, res) => {
 
 // Refresh token endpoint
 app.post('/api/auth/refresh', authenticateToken, (req, res) => {
-    console.log('🔄 [AUTH] Token refresh for user:', req.user.email);
+    logger.info('Token refresh requested', { 
+        userId: req.user.userId,
+        email: req.user.email 
+    });
     
     const newToken = jwt.sign(
         { 
@@ -240,7 +252,10 @@ app.post('/api/auth/refresh', authenticateToken, (req, res) => {
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-    console.log('🏥 [AUTH] Health check requested');
+    logger.healthCheck('healthy', { 
+        service: 'Authentication Service',
+        timestamp: new Date().toISOString()
+    });
     res.json({
         status: 'OK',
         service: 'Authentication Service',
@@ -249,13 +264,15 @@ app.get('/api/health', (req, res) => {
 });
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-    console.log('🔌 [AUTH] Shutting down authentication service...');
+process.on('SIGINT', async () => {
+    logger.info('Authentication service shutting down (SIGINT)');
+    await logger.close();
     process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-    console.log('🔌 [AUTH] Shutting down authentication service...');
+process.on('SIGTERM', async () => {
+    logger.info('Authentication service shutting down (SIGTERM)');
+    await logger.close();
     process.exit(0);
 });
 

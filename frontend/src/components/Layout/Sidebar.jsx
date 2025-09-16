@@ -12,6 +12,7 @@ const Sidebar = () => {
     { name: 'Users', href: '/users', icon: '👥' },
     { name: 'AI Assistant', href: '/ai', icon: '🤖' },
     { name: 'Health', href: '/health', icon: '🏥' },
+    { name: 'Logs', href: '/logs', icon: '📝' },
   ];
 
   const vectorNavigation = [

@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { vectorAPI } from '../../services/api';
-import { createLogger } from '../../../../logger-service/logger.js';
-
-const logger = createLogger('SemanticSearch');
+// Removed logger import - not needed in frontend
 
 const SemanticSearch = ({ onSearchResults, onClose }) => {
   const [query, setQuery] = useState('');
@@ -20,7 +18,7 @@ const SemanticSearch = ({ onSearchResults, onClose }) => {
 
     setIsSearching(true);
     try {
-      logger.info('Performing semantic search', { query, searchParams });
+      console.log('Performing semantic search', { query, searchParams });
       
       const response = await vectorAPI.searchTodos(
         query,
@@ -32,15 +30,15 @@ const SemanticSearch = ({ onSearchResults, onClose }) => {
       if (response.success) {
         setSearchResults(response.data);
         onSearchResults?.(response.data);
-        logger.success('Semantic search completed', { 
+        console.log('Semantic search completed', { 
           resultCount: response.data.totalResults 
         });
       } else {
-        logger.error('Semantic search failed', { error: response.error });
+        console.error('Semantic search failed:', response.error);
         alert('Search failed: ' + (response.error || 'Unknown error'));
       }
     } catch (error) {
-      logger.error('Semantic search error', { error: error.message });
+      console.error('Semantic search error:', error.message);
       alert('Search failed: ' + error.message);
     } finally {
       setIsSearching(false);
